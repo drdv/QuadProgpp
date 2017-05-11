@@ -9,8 +9,10 @@ add_library(quadprog STATIC ${library_sources} ${headers})
 set_property(TARGET quadprog PROPERTY POSITION_INDEPENDENT_CODE 1)
 set_property(TARGET quadprog PROPERTY PUBLIC_HEADER ${headers})
 
-add_executable(main main.cc ${headers})
-target_link_libraries(main quadprog)
+if(QUADPROGPP_BUILD_EXAMPLE)
+    add_executable(main main.cc ${headers})
+    target_link_libraries(main quadprog)
+endif(QUADPROGPP_BUILD_EXAMPLE)
 
 install(TARGETS quadprog
   EXPORT quadprog-targets
