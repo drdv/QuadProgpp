@@ -2172,10 +2172,12 @@ Vector<T> backward_elimination(const Matrix<T>& U, const Vector<T> y)
 }
 
 /* Setting default linear systems machinery */
-
+/*
+ * TODO deprecated?
 #define det lu_det
 #define inverse lu_inverse
 #define solve lu_solve
+*/
 
 /* Random */
 

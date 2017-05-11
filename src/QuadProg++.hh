@@ -35,10 +35,13 @@ s.t.
   1. pay attention in setting up the vectors ce0 and ci0. 
 	   If the constraints of your problem are specified in the form 
 	   A^T x = b and C^T x >= d, then you should set ce0 = -b and ci0 = -d.
+
+TODO deprecated?
   2. The matrices have column dimension equal to MATRIX_DIM, 
      a constant set to 20 in this file (by means of a #define macro). 
      If the matrices are bigger than 20 x 20 the limit could be
 		 increased by means of a -DMATRIX_DIM=n on the compiler command line.
+
   3. The matrix G is modified within the function since it is used to compute
      the G = L^T L cholesky factorization for further computations inside the function. 
      If you need the original matrix G you should make a copy of it and pass the copy
