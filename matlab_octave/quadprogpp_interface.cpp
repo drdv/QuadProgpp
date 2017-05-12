@@ -36,18 +36,18 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
     int num_ineq = mxGetM(Ain);
     x = mxCreateDoubleMatrix(num_var, 1, mxREAL);
 
-    Matrix<double> eH   ((double*) mxGetPr(H),   num_var, num_var);
-    Vector<double> eg   ((double*) mxGetPr(g),   num_var);
-    Matrix<double> eA   ((double*) mxGetPr(A),   num_var, num_eq);
-    Vector<double> eb   ((double*) mxGetPr(b),   num_eq);
-    Matrix<double> eAin ((double*) mxGetPr(Ain), num_var, num_ineq);
-    Vector<double> ebin ((double*) mxGetPr(bin), num_ineq);
-    Vector<double> ex   ((double*) mxGetPr(x),   num_var);
+    QuadProgpp::Matrix<double> eH   ((double*) mxGetPr(H),   num_var, num_var);
+    QuadProgpp::Vector<double> eg   ((double*) mxGetPr(g),   num_var);
+    QuadProgpp::Matrix<double> eA   ((double*) mxGetPr(A),   num_var, num_eq);
+    QuadProgpp::Vector<double> eb   ((double*) mxGetPr(b),   num_eq);
+    QuadProgpp::Matrix<double> eAin ((double*) mxGetPr(Ain), num_var, num_ineq);
+    QuadProgpp::Vector<double> ebin ((double*) mxGetPr(bin), num_ineq);
+    QuadProgpp::Vector<double> ex   ((double*) mxGetPr(x),   num_var);
 
 // solve the problem
     qpStatus qp_status;
 
-    double return_value = solve_quadprog(eH, eg, eA, eb, eAin, ebin, ex);
+    double return_value = QuadProgpp::solve_quadprog(eH, eg, eA, eb, eAin, ebin, ex);
 
     if (return_value == numeric_limits<double>::infinity())
     {

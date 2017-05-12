@@ -36,6 +36,8 @@
 #include <string>
 #include "QuadProg++.hh"
 
+using namespace QuadProgpp;
+
 int main (int argc, char *const argv[]) {
   Matrix<double> G, CE, CI;
   Vector<double> g0, ce0, ci0, x;

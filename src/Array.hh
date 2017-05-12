@@ -16,6 +16,10 @@
 #include <cmath>
 #include <cstdlib>
 
+
+namespace QuadProgpp
+{
+
 enum MType { DIAG };
 
 template <typename T>
@@ -733,7 +737,7 @@ inline Vector<T> sqrt(const Vector<T>& v)
 {
   Vector<T> tmp(v.size());
   for (unsigned int i = 0; i < v.size(); i++)
-    tmp[i] = sqrt(v[i]);
+    tmp[i] = std::sqrt(v[i]);
 	
   return tmp;
 }
@@ -1651,9 +1655,9 @@ T dist(const T& a, const T& b)
 {
   T abs_a = (T)fabs(a), abs_b = (T)fabs(b);
   if (abs_a > abs_b)
-    return abs_a * sqrt((T)1.0 + (abs_b / abs_a) * (abs_b / abs_a));
+    return abs_a * std::sqrt((T)1.0 + (abs_b / abs_a) * (abs_b / abs_a));
   else
-    return (abs_b == (T)0.0 ? (T)0.0 : abs_b * sqrt((T)1.0 + (abs_a / abs_b) * (abs_a / abs_b)));
+    return (abs_b == (T)0.0 ? (T)0.0 : abs_b * std::sqrt((T)1.0 + (abs_a / abs_b) * (abs_a / abs_b)));
 }
 
 template <typename T>
@@ -1687,7 +1691,7 @@ void svd(const Matrix<T>& A, Matrix<T>& U, Vector<T>& W, Matrix<T>& V)
 		  s += U[k][i] * U[k][i];
 		}
 	      f = U[i][i];
-	      g = -sign(f) * sqrt(s);
+	      g = -sign(f) * std::sqrt(s);
 	      h = f * g - s;
 	      U[i][i] = f - g;
 	      for (j = l; j < n; j++)
@@ -1717,7 +1721,7 @@ void svd(const Matrix<T>& A, Matrix<T>& U, Vector<T>& W, Matrix<T>& V)
 		  s += U[i][k] * U[i][k];					
 		}
 	      f = U[i][l];
-	      g = -sign(f) * sqrt(s);
+	      g = -sign(f) * std::sqrt(s);
 	      h = f * g - s;
 	      U[i][l] = f - g;
 	      for (k = l; k <n; k++)
@@ -2070,7 +2074,7 @@ void cholesky(const Matrix<T> A, Matrix<T>& LL)
 	    {
 	      if (sum <= 0.0)
 		throw std::logic_error("Error in Cholesky decomposition: matrix is not postive definite");
-	      LL[i][i] = sqrt(sum);
+	      LL[i][i] = std::sqrt(sum);
 	    }
 	  else
 	    LL[j][i] = sum / LL[i][i];
@@ -2537,5 +2541,7 @@ inline Matrix<double> r_rank(const Matrix<T> m)
   
   return tmp;                  
 }
+
+} // namespace QuadProgpp
 
 #endif // define _ARRAY_HH_
