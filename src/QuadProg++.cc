@@ -15,7 +15,6 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <sstream>
 #include <stdexcept>
 #include "QuadProg++.hh"
 #include "config.hh"
@@ -37,16 +36,8 @@ void cholesky_solve(const Matrix<double>& L, Vector<double>& x, const Vector<dou
 void forward_elimination(const Matrix<double>& L, Vector<double>& y, const Vector<double>& b);
 void backward_elimination(const Matrix<double>& U, Vector<double>& x, const Vector<double>& y);
 
-// Utility functions for computing the scalar product and the euclidean
-// distance between two numbers
-double scalar_product(const Vector<double>& x, const Vector<double>& y);
+// Utility function for computing the euclidean distance between two numbers
 double distance(double a, double b);
-
-// Utility functions for printing vectors and matrices
-void print_matrix(char* name, const Matrix<double>& A, int n = -1, int m = -1);
-
-template<typename T>
-void print_vector(char* name, const Vector<T>& v, int n = -1);
 
 // The Solving function, implementing the Goldfarb-Idnani method
 
@@ -663,16 +654,6 @@ inline double distance(double a, double b)
 }
 
 
-inline double scalar_product(const Vector<double>& x, const Vector<double>& y)
-{
-  register int i, n = x.size();
-  register double sum;
-
-  sum = 0.0;
-  for (i = 0; i < n; i++)
-    sum += x[i] * y[i];
-  return sum;
-}
 
 void cholesky_decomposition(Matrix<double>& A)
 {
@@ -746,48 +727,6 @@ inline void backward_elimination(const Matrix<double>& U, Vector<double>& x, con
       x[i] -= U[i][j] * x[j];
     x[i] = x[i] / U[i][i];
   }
-}
-
-void print_matrix(char* name, const Matrix<double>& A, int n, int m)
-{
-  std::ostringstream s;
-  std::string t;
-  if (n == -1)
-    n = A.nrows();
-  if (m == -1)
-    m = A.ncols();
-
-  s << name << ": " << std::endl;
-  for (int i = 0; i < n; i++)
-  {
-    s << " ";
-    for (int j = 0; j < m; j++)
-      s << A[i][j] << ", ";
-    s << std::endl;
-  }
-  t = s.str();
-  t = t.substr(0, t.size() - 3); // To remove the trailing space, comma and newline
-
-  std::cout << t << std::endl;
-}
-
-template<typename T>
-void print_vector(char* name, const Vector<T>& v, int n)
-{
-  std::ostringstream s;
-  std::string t;
-  if (n == -1)
-    n = v.size();
-
-  s << name << ": " << std::endl << " ";
-  for (int i = 0; i < n; i++)
-  {
-    s << v[i] << ", ";
-  }
-  t = s.str();
-  t = t.substr(0, t.size() - 2); // To remove the trailing space and comma
-
-  std::cout << t << std::endl;
 }
 
 } // namespace QuadProgpp
