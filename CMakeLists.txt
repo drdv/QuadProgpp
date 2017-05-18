@@ -7,7 +7,7 @@ option(QUADPROGPP_BUILD_EXAMPLE     "Build example"     ON)
 option(QUADPROGPP_ENABLE_TRACING    "Enable tracing"    OFF)
 option(QUADPROGPP_ENABLE_EIGEN      "Enable Eigen"      OFF)
 
-set (CMAKE_BUILD_TYPE Debug)
+#set (CMAKE_BUILD_TYPE Debug)
 
 if(QUADPROGPP_ENABLE_EIGEN)
     # Search for Eigen
