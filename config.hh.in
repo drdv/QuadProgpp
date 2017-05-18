@@ -1,3 +1,6 @@
 #pragma once
 
 #cmakedefine QUADPROGPP_ENABLE_TRACING
+
+#define QPPP_VECTOR(t_Scalar)   Vector<t_Scalar>
+#define QPPP_MATRIX(t_Scalar)   Matrix<t_Scalar>

@@ -17,34 +17,33 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 #include <limits>
 #include <stdexcept>
 #include "QuadProg++.hh"
-#include "config.hh"
 
 namespace QuadProgpp
 {
 
 // Utility functions for updating some data needed by the solution method
-void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<double>& np);
-void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<double>& d, int iq);
-void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<double>& d, int iq);
-bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, int& iq, double& rnorm);
-void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, int n, int p, int& iq, int l);
+void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& np);
+void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, int iq);
+void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, int iq);
+bool add_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECTOR(double)& d, int& iq, double& rnorm);
+void delete_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECTOR(int)& A, QPPP_VECTOR(double)& u, int n, int p, int& iq, int l);
 
 // Utility functions for computing the Cholesky decomposition and solving
 // linear systems
-void cholesky_decomposition(Matrix<double>& A);
-void cholesky_solve(const Matrix<double>& L, Vector<double>& x, const Vector<double>& b);
-void forward_elimination(const Matrix<double>& L, Vector<double>& y, const Vector<double>& b);
-void backward_elimination(const Matrix<double>& U, Vector<double>& x, const Vector<double>& y);
+void cholesky_decomposition(QPPP_MATRIX(double)& A);
+void cholesky_solve(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& b);
+void forward_elimination(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& y, const QPPP_VECTOR(double)& b);
+void backward_elimination(const QPPP_MATRIX(double)& U, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& y);
 
 // Utility function for computing the euclidean distance between two numbers
 double distance(double a, double b);
 
 // The Solving function, implementing the Goldfarb-Idnani method
 
-double solve_quadprog(Matrix<double>& G, Vector<double>& g0,
-                      const Matrix<double>& CE, const Vector<double>& ce0,
-                      const Matrix<double>& CI, const Vector<double>& ci0,
-                      Vector<double>& x)
+double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
+                      const QPPP_MATRIX(double)& CE, const QPPP_VECTOR(double)& ce0,
+                      const QPPP_MATRIX(double)& CI, const QPPP_VECTOR(double)& ci0,
+                      QPPP_VECTOR(double)& x)
 {
   std::ostringstream msg;
   int n = G.ncols(), p = CE.ncols(), m = CI.ncols();
@@ -76,8 +75,8 @@ double solve_quadprog(Matrix<double>& G, Vector<double>& g0,
   x.resize(n);
   register int i, j, k, l; /* indices */
   int ip; // this is the index of the constraint to be added to the active set
-  Matrix<double> R(n, n), J(n, n);
-  Vector<double> s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x_old(n), u_old(m + p);
+  QPPP_MATRIX(double) R(n, n), J(n, n);
+  QPPP_VECTOR(double) s(m + p), z(n), r(m + p), d(n), np(n), u(m + p), x_old(n), u_old(m + p);
   double f_value, psi, c1, c2, sum, ss, R_norm;
   double inf;
   if (std::numeric_limits<double>::has_infinity)
@@ -86,7 +85,7 @@ double solve_quadprog(Matrix<double>& G, Vector<double>& g0,
     inf = 1.0E300;
   double t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1
     * and the full step length t2 */
-  Vector<int> A(m + p), A_old(m + p), iai(m + p);
+  QPPP_VECTOR(int) A(m + p), A_old(m + p), iai(m + p);
   int q, iq, iter = 0;
   Vector<bool> iaexcl(m + p);
 
@@ -443,7 +442,7 @@ l2a:/* Step 2a: determine step direction */
   goto l2a;
 }
 
-inline void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<double>& np)
+inline void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& np)
 {
   register int i, j, n = d.size();
   register double sum;
@@ -458,7 +457,7 @@ inline void compute_d(Vector<double>& d, const Matrix<double>& J, const Vector<d
   }
 }
 
-inline void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<double>& d, int iq)
+inline void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, int iq)
 {
   register int i, j, n = z.size();
 
@@ -471,7 +470,7 @@ inline void update_z(Vector<double>& z, const Matrix<double>& J, const Vector<do
   }
 }
 
-inline void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<double>& d, int iq)
+inline void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, int iq)
 {
   register int i, j, n = d.size();
   register double sum;
@@ -486,7 +485,7 @@ inline void update_r(const Matrix<double>& R, Vector<double>& r, const Vector<do
   }
 }
 
-bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, int& iq, double& R_norm)
+bool add_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECTOR(double)& d, int& iq, double& R_norm)
 {
   int n = d.size();
 #ifdef QUADPROGPP_ENABLE_TRACING
@@ -557,7 +556,7 @@ bool add_constraint(Matrix<double>& R, Matrix<double>& J, Vector<double>& d, int
   return true;
 }
 
-void delete_constraint(Matrix<double>& R, Matrix<double>& J, Vector<int>& A, Vector<double>& u, int n, int p, int& iq, int l)
+void delete_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECTOR(int)& A, QPPP_VECTOR(double)& u, int n, int p, int& iq, int l)
 {
 #ifdef QUADPROGPP_ENABLE_TRACING
   std::cout << "Delete constraint " << l << ' ' << iq;
@@ -655,7 +654,7 @@ inline double distance(double a, double b)
 
 
 
-void cholesky_decomposition(Matrix<double>& A)
+void cholesky_decomposition(QPPP_MATRIX(double)& A)
 {
   register int i, j, k, n = A.nrows();
   register double sum;
@@ -690,10 +689,10 @@ void cholesky_decomposition(Matrix<double>& A)
   }
 }
 
-void cholesky_solve(const Matrix<double>& L, Vector<double>& x, const Vector<double>& b)
+void cholesky_solve(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& b)
 {
   int n = L.nrows();
-  Vector<double> y(n);
+  QPPP_VECTOR(double) y(n);
 
   /* Solve L * y = b */
   forward_elimination(L, y, b);
@@ -701,7 +700,7 @@ void cholesky_solve(const Matrix<double>& L, Vector<double>& x, const Vector<dou
   backward_elimination(L, x, y);
 }
 
-inline void forward_elimination(const Matrix<double>& L, Vector<double>& y, const Vector<double>& b)
+inline void forward_elimination(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& y, const QPPP_VECTOR(double)& b)
 {
   register int i, j, n = L.nrows();
 
@@ -715,7 +714,7 @@ inline void forward_elimination(const Matrix<double>& L, Vector<double>& y, cons
   }
 }
 
-inline void backward_elimination(const Matrix<double>& U, Vector<double>& x, const Vector<double>& y)
+inline void backward_elimination(const QPPP_MATRIX(double)& U, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& y)
 {
   register int i, j, n = U.nrows();
 
