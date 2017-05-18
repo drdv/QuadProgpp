@@ -36,18 +36,33 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
     int num_ineq = mxGetM(Ain);
     x = mxCreateDoubleMatrix(num_var, 1, mxREAL);
 
-    QuadProgpp::Matrix<double> eH   ((double*) mxGetPr(H),   num_var, num_var);
-    QuadProgpp::Vector<double> eg   ((double*) mxGetPr(g),   num_var);
-    QuadProgpp::Matrix<double> eA   ((double*) mxGetPr(A),   num_var, num_eq);
-    QuadProgpp::Vector<double> eb   ((double*) mxGetPr(b),   num_eq);
-    QuadProgpp::Matrix<double> eAin ((double*) mxGetPr(Ain), num_var, num_ineq);
-    QuadProgpp::Vector<double> ebin ((double*) mxGetPr(bin), num_ineq);
-    QuadProgpp::Vector<double> ex   ((double*) mxGetPr(x),   num_var);
+#ifdef QUADPROGPP_ENABLE_EIGEN
+    Eigen::MatrixXd eH     = Eigen::Map<Eigen::MatrixXd>  ((double*) mxGetPr(H),   num_var, num_var);
+    Eigen::VectorXd eg     = Eigen::Map<Eigen::VectorXd>  ((double*) mxGetPr(g),   num_var);
+    Eigen::MatrixXd eA     = Eigen::Map<Eigen::MatrixXd>  ((double*) mxGetPr(A),   num_eq, num_var);
+    Eigen::VectorXd eb     = Eigen::Map<Eigen::VectorXd>  ((double*) mxGetPr(b),   num_eq);
+    Eigen::MatrixXd eAin   = Eigen::Map<Eigen::MatrixXd>  ((double*) mxGetPr(Ain), num_ineq, num_var);
+    Eigen::VectorXd ebin   = Eigen::Map<Eigen::VectorXd>  ((double*) mxGetPr(bin), num_ineq);
+    Eigen::VectorXd ex     = Eigen::Map<Eigen::VectorXd>  ((double*) mxGetPr(x),   num_var);
+#else
+    QPPP_MATRIX(double) eH   ((double*) mxGetPr(H),   num_var, num_var);
+    QPPP_VECTOR(double) eg   ((double*) mxGetPr(g),   num_var);
+    QPPP_MATRIX(double) eA   ((double*) mxGetPr(A),   num_var, num_eq);
+    QPPP_VECTOR(double) eb   ((double*) mxGetPr(b),   num_eq);
+    QPPP_MATRIX(double) eAin ((double*) mxGetPr(Ain), num_var, num_ineq);
+    QPPP_VECTOR(double) ebin ((double*) mxGetPr(bin), num_ineq);
+    QPPP_VECTOR(double) ex   ((double*) mxGetPr(x),   num_var);
+#endif
+
 
 // solve the problem
     qpStatus qp_status;
 
+#ifdef QUADPROGPP_ENABLE_EIGEN
+    double return_value = QuadProgpp::solve_quadprog(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
+#else
     double return_value = QuadProgpp::solve_quadprog(eH, eg, eA, eb, eAin, ebin, ex);
+#endif
 
     if (return_value == numeric_limits<double>::infinity())
     {

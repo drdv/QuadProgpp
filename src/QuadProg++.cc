@@ -46,15 +46,15 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
                       QPPP_VECTOR(double)& x)
 {
   std::ostringstream msg;
-  int n = G.ncols(), p = CE.ncols(), m = CI.ncols();
-  if (G.nrows() != n)
+  int n = G.cols(), p = CE.cols(), m = CI.cols();
+  if (G.rows() != n)
   {
-    msg << "The matrix G is not a squared matrix (" << G.nrows() << " x " << G.ncols() << ")";
+    msg << "The matrix G is not a squared matrix (" << G.rows() << " x " << G.cols() << ")";
     throw std::logic_error(msg.str());
   }
-  if (CE.nrows() != n)
+  if (CE.rows() != n)
   {
-    msg << "The matrix CE is incompatible (incorrect number of rows " << CE.nrows() << " , expecting " << n << ")";
+    msg << "The matrix CE is incompatible (incorrect number of rows " << CE.rows() << " , expecting " << n << ")";
     throw std::logic_error(msg.str());
   }
   if (ce0.size() != p)
@@ -62,9 +62,9 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     msg << "The vector ce0 is incompatible (incorrect dimension " << ce0.size() << ", expecting " << p << ")";
     throw std::logic_error(msg.str());
   }
-  if (CI.nrows() != n)
+  if (CI.rows() != n)
   {
-    msg << "The matrix CI is incompatible (incorrect number of rows " << CI.nrows() << " , expecting " << n << ")";
+    msg << "The matrix CI is incompatible (incorrect number of rows " << CI.rows() << " , expecting " << n << ")";
     throw std::logic_error(msg.str());
   }
   if (ci0.size() != m)
@@ -87,7 +87,7 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     * and the full step length t2 */
   QPPP_VECTOR(int) A(m + p), A_old(m + p), iai(m + p);
   int q, iq, iter = 0;
-  Vector<bool> iaexcl(m + p);
+  QPPP_VECTOR(bool) iaexcl(m + p);
 
   /* p is the number of equality constraints */
   /* m is the number of inequality constraints */
@@ -110,7 +110,7 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
   c1 = 0.0;
   for (i = 0; i < n; i++)
   {
-    c1 += G[i][i];
+    c1 += G(i, i);
   }
   /* decompose the matrix G in the form L^T L */
   cholesky_decomposition(G);
@@ -122,7 +122,7 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
   {
     d[i] = 0.0;
     for (j = 0; j < n; j++)
-      R[i][j] = 0.0;
+      R(i, j) = 0.0;
   }
   R_norm = 1.0; /* this variable will hold the norm of the matrix R */
 
@@ -133,7 +133,7 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     d[i] = 1.0;
     forward_elimination(G, z, d);
     for (j = 0; j < n; j++)
-      J[i][j] = z[j];
+      J(i, j) = z[j];
     c2 += z[i];
     d[i] = 0.0;
   }
@@ -163,7 +163,7 @@ double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
   for (i = 0; i < p; i++)
   {
     for (j = 0; j < n; j++)
-      np[j] = CE[j][i];
+      np[j] = CE(j, i);
     compute_d(d, J, np);
     update_z(z, J, d, iq);
     update_r(R, r, d, iq);
@@ -225,7 +225,7 @@ l1:	iter++;
     iaexcl[i] = true;
     sum = 0.0;
     for (j = 0; j < n; j++)
-      sum += CI[j][i] * x[j];
+      sum += CI(j, i) * x[j];
     sum += ci0[i];
     s[i] = sum;
     psi += std::min(0.0, sum);
@@ -271,7 +271,7 @@ l2: /* Step 2: check for feasibility and determine a new S-pair */
 
   /* set np = n[ip] */
   for (i = 0; i < n; i++)
-    np[i] = CI[i][ip];
+    np[i] = CI(i, ip);
   /* set u = [u 0]^T */
   u[iq] = 0.0;
   /* add ip to the active set A */
@@ -433,7 +433,7 @@ l2a:/* Step 2a: determine step direction */
   /* update s[ip] = CI * x + ci0 */
   sum = 0.0;
   for (k = 0; k < n; k++)
-    sum += CI[k][ip] * x[k];
+    sum += CI(k, ip) * x[k];
   s[ip] = sum + ci0[ip];
 
 #ifdef QUADPROGPP_ENABLE_TRACING
@@ -452,7 +452,7 @@ inline void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, cons
   {
     sum = 0.0;
     for (j = 0; j < n; j++)
-      sum += J[j][i] * np[j];
+      sum += J(j, i) * np[j];
     d[i] = sum;
   }
 }
@@ -466,7 +466,7 @@ inline void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const
   {
     z[i] = 0.0;
     for (j = iq; j < n; j++)
-      z[i] += J[i][j] * d[j];
+      z[i] += J(i, j) * d[j];
   }
 }
 
@@ -480,8 +480,8 @@ inline void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const
   {
     sum = 0.0;
     for (j = i + 1; j < iq; j++)
-      sum += R[i][j] * r[j];
-    r[i] = (d[i] - sum) / R[i][i];
+      sum += R(i, j) * r[j];
+    r[i] = (d[i] - sum) / R(i, i);
   }
 }
 
@@ -527,10 +527,10 @@ bool add_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECTOR(
     xny = ss / (1.0 + cc);
     for (k = 0; k < n; k++)
     {
-      t1 = J[k][j - 1];
-      t2 = J[k][j];
-      J[k][j - 1] = t1 * cc + t2 * ss;
-      J[k][j] = xny * (t1 + J[k][j - 1]) - t2;
+      t1 = J(k,j - 1);
+      t2 = J(k, j);
+      J(k, j - 1) = t1 * cc + t2 * ss;
+      J(k, j) = xny * (t1 + J(k, j - 1)) - t2;
     }
   }
   /* update the number of constraints added*/
@@ -539,7 +539,7 @@ bool add_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECTOR(
     into column iq - 1 of R
     */
   for (i = 0; i < iq; i++)
-    R[i][iq - 1] = d[i];
+    R(i, iq - 1) = d[i];
 #ifdef QUADPROGPP_ENABLE_TRACING
   std::cout << iq << std::endl;
   print_matrix("R", R, iq, iq);
@@ -578,7 +578,7 @@ void delete_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECT
       A[i] = A[i + 1];
       u[i] = u[i + 1];
       for (j = 0; j < n; j++)
-        R[j][i] = R[j][i + 1];
+        R(j, i) = R(j, i + 1);
     }
 
   A[iq - 1] = A[iq];
@@ -586,7 +586,7 @@ void delete_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECT
   A[iq] = 0;
   u[iq] = 0.0;
   for (j = 0; j < iq; j++)
-    R[j][iq - 1] = 0.0;
+    R(j, iq - 1) = 0.0;
   /* constraint has been fully removed */
   iq--;
 #ifdef QUADPROGPP_ENABLE_TRACING
@@ -598,37 +598,37 @@ void delete_constraint(QPPP_MATRIX(double)& R, QPPP_MATRIX(double)& J, QPPP_VECT
 
   for (j = qq; j < iq; j++)
   {
-    cc = R[j][j];
-    ss = R[j + 1][j];
+    cc = R(j, j);
+    ss = R(j + 1, j);
     h = distance(cc, ss);
     if (fabs(h) < std::numeric_limits<double>::epsilon()) // h == 0
       continue;
     cc = cc / h;
     ss = ss / h;
-    R[j + 1][j] = 0.0;
+    R(j + 1, j) = 0.0;
     if (cc < 0.0)
     {
-      R[j][j] = -h;
+      R(j, j) = -h;
       cc = -cc;
       ss = -ss;
     }
     else
-      R[j][j] = h;
+      R(j, j) = h;
 
     xny = ss / (1.0 + cc);
     for (k = j + 1; k < iq; k++)
     {
-      t1 = R[j][k];
-      t2 = R[j + 1][k];
-      R[j][k] = t1 * cc + t2 * ss;
-      R[j + 1][k] = xny * (t1 + R[j][k]) - t2;
+      t1 = R(j, k);
+      t2 = R(j + 1, k);
+      R(j, k) = t1 * cc + t2 * ss;
+      R(j + 1,k) = xny * (t1 + R(j, k)) - t2;
     }
     for (k = 0; k < n; k++)
     {
-      t1 = J[k][j];
-      t2 = J[k][j + 1];
-      J[k][j] = t1 * cc + t2 * ss;
-      J[k][j + 1] = xny * (J[k][j] + t1) - t2;
+      t1 = J(k, j);
+      t2 = J(k,j + 1);
+      J(k, j) = t1 * cc + t2 * ss;
+      J(k,j + 1) = xny * (J(k, j) + t1) - t2;
     }
   }
 }
@@ -656,16 +656,16 @@ inline double distance(double a, double b)
 
 void cholesky_decomposition(QPPP_MATRIX(double)& A)
 {
-  register int i, j, k, n = A.nrows();
+  register int i, j, k, n = A.rows();
   register double sum;
 
   for (i = 0; i < n; i++)
   {
     for (j = i; j < n; j++)
     {
-      sum = A[i][j];
+      sum = A(i, j);
       for (k = i - 1; k >= 0; k--)
-        sum -= A[i][k]*A[j][k];
+        sum -= A(i, k)*A(j, k);
       if (i == j)
 	    {
 	      if (sum <= 0.0)
@@ -679,19 +679,19 @@ void cholesky_decomposition(QPPP_MATRIX(double)& A)
           throw std::logic_error(os.str());
           exit(-1);
         }
-	      A[i][i] = std::sqrt(sum);
+	      A(i, i) = std::sqrt(sum);
 	    }
       else
-        A[j][i] = sum / A[i][i];
+        A(j, i) = sum / A(i, i);
     }
     for (k = i + 1; k < n; k++)
-      A[i][k] = A[k][i];
+      A(i, k) = A(k, i);
   }
 }
 
 void cholesky_solve(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& b)
 {
-  int n = L.nrows();
+  int n = L.rows();
   QPPP_VECTOR(double) y(n);
 
   /* Solve L * y = b */
@@ -702,29 +702,29 @@ void cholesky_solve(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& x, const 
 
 inline void forward_elimination(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& y, const QPPP_VECTOR(double)& b)
 {
-  register int i, j, n = L.nrows();
+  register int i, j, n = L.rows();
 
-  y[0] = b[0] / L[0][0];
+  y[0] = b[0] / L(0, 0);
   for (i = 1; i < n; i++)
   {
     y[i] = b[i];
     for (j = 0; j < i; j++)
-      y[i] -= L[i][j] * y[j];
-    y[i] = y[i] / L[i][i];
+      y[i] -= L(i, j) * y[j];
+    y[i] = y[i] / L(i, i);
   }
 }
 
 inline void backward_elimination(const QPPP_MATRIX(double)& U, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& y)
 {
-  register int i, j, n = U.nrows();
+  register int i, j, n = U.rows();
 
-  x[n - 1] = y[n - 1] / U[n - 1][n - 1];
+  x[n - 1] = y[n - 1] / U(n - 1, n - 1);
   for (i = n - 2; i >= 0; i--)
   {
     x[i] = y[i];
     for (j = i + 1; j < n; j++)
-      x[i] -= U[i][j] * x[j];
-    x[i] = x[i] / U[i][i];
+      x[i] -= U(i, j) * x[j];
+    x[i] = x[i] / U(i, i);
   }
 }
 

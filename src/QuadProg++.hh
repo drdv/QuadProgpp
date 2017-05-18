@@ -66,7 +66,28 @@ TODO deprecated?
 #define _QUADPROGPP
 
 #include "config.hh"
+
+
+#ifdef QUADPROGPP_ENABLE_EIGEN
+
+#include <Eigen/Core>
+
+#define QPPP_VECTOR(t_Scalar)   Eigen::Matrix<t_Scalar, Eigen::Dynamic, 1, Eigen::ColMajor>
+#define QPPP_MATRIX(t_Scalar)   Eigen::Matrix<t_Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>
+
+#include "EigenHelpers.hh"
+
+#else
+
 #include "Array.hh"
+#include "ArrayHelpers.hh"
+
+#define QPPP_VECTOR(t_Scalar)   QuadProgpp::Vector<t_Scalar>
+#define QPPP_MATRIX(t_Scalar)   QuadProgpp::Matrix<t_Scalar>
+
+#endif
+
+
 
 namespace QuadProgpp
 {
