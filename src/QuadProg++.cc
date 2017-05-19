@@ -178,6 +178,8 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
         compute_d(d, J, np);
         update_z(z, J, d, iq);
         update_r(R, r, d, iq);
+
+        double z_dot_np = z.dot(np);
 #ifdef QUADPROGPP_ENABLE_TRACING
         print_matrix("R", R, n, iq);
         print_vector("z", z);
@@ -189,7 +191,7 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
           becomes feasible */
         t2 = 0.0;
         if (fabs(z.dot(z)) > std::numeric_limits<double>::epsilon()) // i.e. z != 0
-            t2 = (-np.dot(x) - ce0[i]) / z.dot(np);
+            t2 = (-np.dot(x) - ce0[i]) / z_dot_np;
 
         /* set x = x + t2 * z */
         for (k = 0; k < n; k++)
@@ -201,7 +203,7 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
             u[k] -= t2 * r[k];
 
         /* compute the new solution value */
-        f_value += 0.5 * (t2 * t2) * z.dot(np);
+        f_value += 0.5 * t2 * t2 * z_dot_np;
         A[i] = -i - 1;
 
         if (!add_constraint(R, J, d, iq, R_norm))
@@ -235,7 +237,14 @@ l1:
 
 
     // s = CI^T*x + ci0
-    multiply_and_add(s,CI,x,ci0);
+    for (i = 0; i < m; i++)
+    {
+        double sum = 0.0;
+        for (int j = 0; j < n; j++)
+            sum += CI(j, i) * x[j];
+        sum += ci0[i];
+        s[i] = sum;
+    }
     for (i = 0; i < m; i++)
     {
         iaexcl[i] = true;
@@ -299,6 +308,8 @@ l2a:/* Step 2a: determine step direction */
     update_z(z, J, d, iq);
     /* compute N* np (if q > 0): the negative of the step direction in the dual space */
     update_r(R, r, d, iq);
+
+    double z_dot_np = z.dot(np);
 #ifdef QUADPROGPP_ENABLE_TRACING
     std::cout << "Step direction z" << std::endl;
     print_vector("z", z);
@@ -327,7 +338,7 @@ l2a:/* Step 2a: determine step direction */
     /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
     if (fabs(z.dot(z))  > std::numeric_limits<double>::epsilon()) // i.e. z != 0
     {
-        t2 = -s[ip] / z.dot(np);
+        t2 = -s[ip] / z_dot_np;
         if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
             t2 = inf;
     }
@@ -363,7 +374,6 @@ l2a:/* Step 2a: determine step direction */
         std::cout << " in dual space: "
                   << f_value << std::endl;
         print_vector("x", x);
-        print_vector("z", z);
         print_vector("A", A, iq + 1);
 #endif
         goto l2a;
@@ -375,7 +385,7 @@ l2a:/* Step 2a: determine step direction */
     for (k = 0; k < n; k++)
         x[k] += t * z[k];
     /* update the solution value */
-    f_value += t * z.dot(np) * (0.5 * t + u[iq]);
+    f_value += t * z_dot_np * (0.5 * t + u[iq]);
     /* u = u + t * [-r 1] */
     for (k = 0; k < iq; k++)
         u[k] -= t * r[k];
