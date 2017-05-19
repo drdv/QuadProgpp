@@ -5,6 +5,9 @@
 
 #pragma once
 
+namespace QuadProgpp
+{
+
 // Utility function for computing the scalar product
 template<typename T>
 inline double scalar_product(const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& y)
@@ -35,3 +38,5 @@ void print_vector(const char* name, const QPPP_VECTOR(T)& v, int n = -1)
   std::cout << name << ": " << std::endl << " ";
   std::cout << v.head(n) << std::endl;
 }
+
+} // namesace QuadProgpp
