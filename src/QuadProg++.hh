@@ -91,10 +91,51 @@ TODO deprecated?
 
 namespace QuadProgpp
 {
-double solve_quadprog(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
-                      const QPPP_MATRIX(double)& CE, const QPPP_VECTOR(double)& ce0,
-                      const QPPP_MATRIX(double)& CI, const QPPP_VECTOR(double)& ci0,
-                      QPPP_VECTOR(double)& x);
+    class Solver
+    {
+        public:
+            Solver();
+
+            double solve(   QPPP_MATRIX(double)& G, 
+                            QPPP_VECTOR(double)& g0,
+                            const QPPP_MATRIX(double)& CE, 
+                            const QPPP_VECTOR(double)& ce0,
+                            const QPPP_MATRIX(double)& CI, 
+                            const QPPP_VECTOR(double)& ci0,
+                            QPPP_VECTOR(double)& x);
+
+        private:
+            double inf;
+            QPPP_MATRIX(double) R;
+            QPPP_MATRIX(double) J;
+            QPPP_VECTOR(double) s;
+            QPPP_VECTOR(double) z;
+            QPPP_VECTOR(double) r;
+            QPPP_VECTOR(double) d;
+            QPPP_VECTOR(double) np;
+            QPPP_VECTOR(double) u;
+            QPPP_VECTOR(double) x_old;
+            QPPP_VECTOR(double) u_old;
+            QPPP_VECTOR(int) A;
+            QPPP_VECTOR(int) A_old;
+            QPPP_VECTOR(int) iai;
+            QPPP_VECTOR(bool) iaexcl;
+
+        private:
+            bool add_constraint(    QPPP_MATRIX(double)& R, 
+                                    QPPP_MATRIX(double)& J, 
+                                    QPPP_VECTOR(double)& d, 
+                                    int& iq, 
+                                    double& rnorm);
+            void delete_constraint( QPPP_MATRIX(double)& R, 
+                                    QPPP_MATRIX(double)& J, 
+                                    QPPP_VECTOR(int)& A, 
+                                    QPPP_VECTOR(double)& u, 
+                                    int n, 
+                                    int p, 
+                                    int& iq, 
+                                    int l);
+    };
 } // namespace QuadProgpp
 
 #endif // #define _QUADPROGPP

@@ -57,11 +57,12 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
 
 // solve the problem
     qpStatus qp_status;
+    QuadProgpp::Solver  quadprog;
 
 #ifdef QUADPROGPP_ENABLE_EIGEN
-    double return_value = QuadProgpp::solve_quadprog(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
+    double return_value = quadprog.solve(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
 #else
-    double return_value = QuadProgpp::solve_quadprog(eH, eg, eA, eb, eAin, ebin, ex);
+    double return_value = quadprog.solve(eH, eg, eA, eb, eAin, ebin, ex);
 #endif
 
     if (return_value == numeric_limits<double>::infinity())

@@ -103,7 +103,8 @@ int main (int argc, char *const argv[]) {
 	}
   x.resize(n);
 
-  std::cout << "f: " << solve_quadprog(G, g0, CE, ce0, CI, ci0, x) << std::endl;
+  Solver quadprog;
+  std::cout << "f: " << quadprog.solve(G, g0, CE, ce0, CI, ci0, x) << std::endl;
 	std::cout << "x: " << x << std::endl;
 /*  for (int i = 0; i < n; i++)
     std::cout << x[i] << ' ';
