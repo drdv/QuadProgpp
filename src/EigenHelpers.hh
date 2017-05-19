@@ -62,4 +62,11 @@ class CholeskyDecomposition
         Eigen::LLT< Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> > lltOfA;
 };
 
+
+
+template<typename T>
+void multiply_and_add(QPPP_VECTOR(T)& y, const QPPP_MATRIX(T)& A, const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+{
+    y.noalias() = A.transpose()*x + b;
+}
 } // namesace QuadProgpp

@@ -33,12 +33,13 @@ namespace QuadProgpp
 
 // Utility functions for updating some data needed by the solution method
 void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& np);
-void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, int iq);
-void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, int iq);
+void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, const int iq);
+void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, const int iq);
 
 
 // Utility function for computing the euclidean distance between two numbers
 double distance(double a, double b);
+
 
 Solver::Solver()
 {
@@ -50,12 +51,15 @@ Solver::Solver()
 
 
 // The Solving function, implementing the Goldfarb-Idnani method
-double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
+Status::Value Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
              const QPPP_MATRIX(double)& CE, const QPPP_VECTOR(double)& ce0,
              const QPPP_MATRIX(double)& CI, const QPPP_VECTOR(double)& ci0,
              QPPP_VECTOR(double)& x)
 {
     std::ostringstream msg;
+
+    /* p is the number of equality constraints */
+    /* m is the number of inequality constraints */
     int n = G.cols(), p = CE.cols(), m = CI.cols();
     if (G.rows() != n)
     {
@@ -84,29 +88,18 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     }
     x.resize(n);
     register int i, j, k, l; /* indices */
-    int ip; // this is the index of the constraint to be added to the active set
-    R.resize(n, n);
     J.resize(n, n);
-    s.resize(m + p);
     z.resize(n);
     r.resize(m + p);
     d.resize(n);
     np.resize(n);
     u.resize(m + p);
-    x_old.resize(n);
-    u_old.resize(m + p);
-    double f_value, psi, trace_G, trace_J, sum, ss, R_norm;
+    double trace_G, trace_J;
     double t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1
 * and the full step length t2 */
     A.resize(m + p);
-    A_old.resize(m + p);
-    iai.resize(m + p);
-    int q, iq, iter = 0;
-    iaexcl.resize(m + p);
 
-    /* p is the number of equality constraints */
-    /* m is the number of inequality constraints */
-    q = 0;  /* size of the active set A (containing the indices of the active constraints) */
+    int q = 0;  /* size of the active set A (containing the indices of the active constraints) */
 #ifdef QUADPROGPP_ENABLE_TRACING
     std::cout << std::endl << "Starting solve_quadprog" << std::endl;
     print_matrix("G", G);
@@ -133,13 +126,14 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     print_matrix("G", G);
 #endif
     /* initialize the matrix R */
+    R.resize(n, n);
     for (i = 0; i < n; i++)
     {
         d[i] = 0.0;
         for (j = 0; j < n; j++)
             R(i, j) = 0.0;
     }
-    R_norm = 1.0; /* this variable will hold the norm of the matrix R */
+    double R_norm = 1.0; /* this variable will hold the norm of the matrix R */
 
     /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
     chol.invert_upper(G,J,z,d);
@@ -170,7 +164,7 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
 #endif
 
     /* Add equality constraints to the working set A */
-    iq = 0;
+    int iq = 0;
     for (i = 0; i < p; i++)
     {
         for (j = 0; j < n; j++)
@@ -210,49 +204,51 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
         {
             // Equality constraints are linearly dependent
             throw std::runtime_error("Constraints are linearly dependent");
-            return f_value;
+            return (Status::FAILURE);
         }
     }
 
+
     /* set iai = K \ A */
+    iai.resize(m + p);
     for (i = 0; i < m; i++)
         iai[i] = i;
 
+    A_old.resize(m + p);
+    x_old.resize(n);
+    u_old.resize(m + p);
+
+    ci_violations.resize(m);
+    iaexcl.resize(m + p);
+    iter = 0;
+
 l1:
-    iter++;
+    ++iter;
 #ifdef QUADPROGPP_ENABLE_TRACING
     print_vector("x", x);
 #endif
     /* step 1: choose a violated constraint */
     for (i = p; i < iq; i++)
     {
-        ip = A[i];
-        iai[ip] = -1;
+        iai[ A[i] ] = -1;
     }
 
     /* compute s[x] = ci^T * x + ci0 for all elements of K \ A */
-    ss = 0.0;
-    psi = 0.0; /* this value will contain the sum of all infeasibilities */
-    ip = 0; /* ip will be the index of the chosen violated constraint */
+    double ss = 0.0;
+    double psi = 0.0; /* this value will contain the sum of all infeasibilities */
+    int ip = 0; /* ip will be the index of the chosen violated constraint */
 
 
-    // s = CI^T*x + ci0
-    for (i = 0; i < m; i++)
-    {
-        double sum = 0.0;
-        for (int j = 0; j < n; j++)
-            sum += CI(j, i) * x[j];
-        sum += ci0[i];
-        s[i] = sum;
-    }
+    // ci_violations = CI^T*x + ci0
+    multiply_and_add(ci_violations,CI,x,ci0);
     for (i = 0; i < m; i++)
     {
         iaexcl[i] = true;
-        psi += std::min(0.0, s[i]);
+        psi += std::min(0.0, ci_violations[i]);
     }
 
 #ifdef QUADPROGPP_ENABLE_TRACING
-    print_vector("s", s, m);
+    print_vector("s", ci_violations, m);
 #endif
 
 
@@ -260,8 +256,7 @@ l1:
     {
         /* numerically there are not infeasibilities anymore */
         q = iq;
-
-        return f_value;
+        return (Status::OK);
     }
 
     /* save old values for u and A */
@@ -276,17 +271,16 @@ l1:
 l2: /* Step 2: check for feasibility and determine a new S-pair */
     for (i = 0; i < m; i++)
     {
-        if (s[i] < ss && iai[i] != -1 && iaexcl[i])
+        if (ci_violations[i] < ss && iai[i] != -1 && iaexcl[i])
         {
-            ss = s[i];
+            ss = ci_violations[i];
             ip = i;
         }
     }
     if (ss >= 0.0)
     {
         q = iq;
-
-        return f_value;
+        return (Status::OK);
     }
 
     /* set np = n[ip] */
@@ -338,7 +332,7 @@ l2a:/* Step 2a: determine step direction */
     /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
     if (fabs(z.dot(z))  > std::numeric_limits<double>::epsilon()) // i.e. z != 0
     {
-        t2 = -s[ip] / z_dot_np;
+        t2 = -ci_violations[ip] / z_dot_np;
         if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
             t2 = inf;
     }
@@ -359,7 +353,7 @@ l2a:/* Step 2a: determine step direction */
         /* QPP is infeasible */
         // FIXME: unbounded to raise
         q = iq;
-        return inf;
+        return (Status::FAILURE);
     }
     /* case (ii): step in dual space */
     if (t2 >= inf)
@@ -451,13 +445,13 @@ l2a:/* Step 2a: determine step direction */
 #endif
 
     /* update s[ip] = CI * x + ci0 */
-    sum = 0.0;
+    double sum = 0.0;
     for (k = 0; k < n; k++)
         sum += CI(k, ip) * x[k];
-    s[ip] = sum + ci0[ip];
+    ci_violations[ip] = sum + ci0[ip];
 
 #ifdef QUADPROGPP_ENABLE_TRACING
-    print_vector("s", s, m);
+    print_vector("s", ci_violations, m);
 #endif
     goto l2a;
 }
@@ -626,7 +620,7 @@ inline void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, cons
     }
 }
 
-inline void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, int iq)
+inline void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, const int iq)
 {
     register int i, j, n = z.size();
 
@@ -639,7 +633,7 @@ inline void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const
     }
 }
 
-inline void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, int iq)
+inline void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, const int iq)
 {
     register int i, j, n = d.size();
     register double sum;

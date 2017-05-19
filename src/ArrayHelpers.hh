@@ -159,4 +159,16 @@ class CholeskyDecomposition
 };
 
 
+template<typename T>
+void multiply_and_add(QPPP_VECTOR(T)& y, const QPPP_MATRIX(T)& A, const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+{
+    for (int i = 0; i < A.cols(); i++)
+    {
+        double sum = 0.0;
+        for (int j = 0; j < A.rows(); j++)
+            sum += A(j, i) * x[j];
+        sum += b[i];
+        y[i] = sum;
+    }
+}
 } //namespace QuadProgpp

@@ -88,12 +88,28 @@ TODO deprecated?
 
 namespace QuadProgpp
 {
+    class Status
+    {
+        public:
+            enum Value
+            {
+                OK = 0,
+                FAILURE = 1
+            };
+    };
+
+
     class Solver
     {
         public:
+            int     iter;
+            double  f_value;
+
+
+        public:
             Solver();
 
-            double solve(   QPPP_MATRIX(double)& G,
+            Status::Value solve(   QPPP_MATRIX(double)& G,
                             QPPP_VECTOR(double)& g0,
                             const QPPP_MATRIX(double)& CE,
                             const QPPP_VECTOR(double)& ce0,
@@ -102,10 +118,11 @@ namespace QuadProgpp
                             QPPP_VECTOR(double)& x);
 
         private:
-            double inf;
+            double  inf;
+
             QPPP_MATRIX(double) R;
             QPPP_MATRIX(double) J;
-            QPPP_VECTOR(double) s;
+            QPPP_VECTOR(double) ci_violations;
             QPPP_VECTOR(double) z;
             QPPP_VECTOR(double) r;
             QPPP_VECTOR(double) d;

@@ -60,22 +60,22 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
     QuadProgpp::Solver  quadprog;
 
 #ifdef QUADPROGPP_ENABLE_EIGEN
-    double return_value = quadprog.solve(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
+    QuadProgpp::Status::Value return_value = quadprog.solve(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
 #else
-    double return_value = quadprog.solve(eH, eg, eA, eb, eAin, ebin, ex);
+    QuadProgpp::Status::Value return_value = quadprog.solve(eH, eg, eA, eb, eAin, ebin, ex);
 #endif
 
-    if (return_value == numeric_limits<double>::infinity())
-    {
-        qp_status = QP_INFEASIBLE;
-    }
-    else
+    if (return_value == QuadProgpp::Status::OK)
     {
         qp_status = QP_OK;
         for(std::size_t i = 0; i < num_var; ++i)
         {
             ((double*) mxGetPr(x))[i] = ex[i];
         }
+    }
+    else
+    {
+        qp_status = QP_INFEASIBLE;
     }
 
 
