@@ -70,17 +70,14 @@ TODO deprecated?
 
 #ifdef QUADPROGPP_ENABLE_EIGEN
 
-#include <Eigen/Core>
+#include <Eigen/Dense>
 
 #define QPPP_VECTOR(t_Scalar)   Eigen::Matrix<t_Scalar, Eigen::Dynamic, 1, Eigen::ColMajor>
 #define QPPP_MATRIX(t_Scalar)   Eigen::Matrix<t_Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>
 
-#include "EigenHelpers.hh"
-
 #else
 
 #include "Array.hh"
-#include "ArrayHelpers.hh"
 
 #define QPPP_VECTOR(t_Scalar)   QuadProgpp::Vector<t_Scalar>
 #define QPPP_MATRIX(t_Scalar)   QuadProgpp::Matrix<t_Scalar>
@@ -96,11 +93,11 @@ namespace QuadProgpp
         public:
             Solver();
 
-            double solve(   QPPP_MATRIX(double)& G, 
+            double solve(   QPPP_MATRIX(double)& G,
                             QPPP_VECTOR(double)& g0,
-                            const QPPP_MATRIX(double)& CE, 
+                            const QPPP_MATRIX(double)& CE,
                             const QPPP_VECTOR(double)& ce0,
-                            const QPPP_MATRIX(double)& CI, 
+                            const QPPP_MATRIX(double)& CI,
                             const QPPP_VECTOR(double)& ci0,
                             QPPP_VECTOR(double)& x);
 
@@ -122,18 +119,18 @@ namespace QuadProgpp
             QPPP_VECTOR(bool) iaexcl;
 
         private:
-            bool add_constraint(    QPPP_MATRIX(double)& R, 
-                                    QPPP_MATRIX(double)& J, 
-                                    QPPP_VECTOR(double)& d, 
-                                    int& iq, 
+            bool add_constraint(    QPPP_MATRIX(double)& R,
+                                    QPPP_MATRIX(double)& J,
+                                    QPPP_VECTOR(double)& d,
+                                    int& iq,
                                     double& rnorm);
-            void delete_constraint( QPPP_MATRIX(double)& R, 
-                                    QPPP_MATRIX(double)& J, 
-                                    QPPP_VECTOR(int)& A, 
-                                    QPPP_VECTOR(double)& u, 
-                                    int n, 
-                                    int p, 
-                                    int& iq, 
+            void delete_constraint( QPPP_MATRIX(double)& R,
+                                    QPPP_MATRIX(double)& J,
+                                    QPPP_VECTOR(int)& A,
+                                    QPPP_VECTOR(double)& u,
+                                    int n,
+                                    int p,
+                                    int& iq,
                                     int l);
     };
 } // namespace QuadProgpp

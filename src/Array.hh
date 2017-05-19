@@ -41,8 +41,10 @@ public:
 
     inline unsigned int size() const;
     inline void resize(const unsigned int n);
-    inline void setZero(const unsigned int n);
     inline void resize(const T& a, const unsigned int n);
+    inline void setZero(const unsigned int n);
+
+    inline double dot(const Vector<T>& rhs);
 
     Vector<T>& operator=(const Vector<T>& rhs); //assignment
     Vector<T>& operator=(const T& a); //assign a to every element
@@ -119,13 +121,6 @@ void Vector<T>::resize(const unsigned int n)
 }
 
 template <typename T>
-void Vector<T>::setZero(const unsigned int n)
-{
-    this->resize(n);
-    *this = 0.0;
-}
-
-template <typename T>
 void Vector<T>::resize(const T& a, const unsigned int n)
 {
     resize(n);
@@ -133,6 +128,22 @@ void Vector<T>::resize(const T& a, const unsigned int n)
         v[i] = a;
 }
 
+template <typename T>
+void Vector<T>::setZero(const unsigned int n)
+{
+    this->resize(n);
+    *this = 0.0;
+}
+
+
+template <typename T>
+inline double Vector<T>::dot(const Vector<T>& rhs)
+{
+    register double sum = 0.0;
+    for (int i = 0; i < std::min(size(), rhs.size()); ++i)
+        sum += v[i] * rhs.v[i];
+    return sum;
+}
 
 template <typename T>
 inline Vector<T>& Vector<T>::operator=(const Vector<T>& rhs)

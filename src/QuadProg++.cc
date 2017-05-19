@@ -18,6 +18,16 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 #include <stdexcept>
 #include "QuadProg++.hh"
 
+#ifdef QUADPROGPP_ENABLE_EIGEN
+
+#include "EigenHelpers.hh"
+
+#else
+
+#include "ArrayHelpers.hh"
+
+#endif
+
 namespace QuadProgpp
 {
 
@@ -26,16 +36,9 @@ void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, const QPPP_
 void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, int iq);
 void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, int iq);
 
-// Utility functions for computing the Cholesky decomposition and solving
-// linear systems
-void cholesky_decomposition(QPPP_MATRIX(double)& A);
-void cholesky_solve(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& b);
-void forward_elimination(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& y, const QPPP_VECTOR(double)& b);
-void backward_elimination(const QPPP_MATRIX(double)& U, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& y);
 
 // Utility function for computing the euclidean distance between two numbers
 double distance(double a, double b);
-
 
 Solver::Solver()
 {
@@ -92,7 +95,7 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     u.resize(m + p);
     x_old.resize(n);
     u_old.resize(m + p);
-    double f_value, psi, c1, c2, sum, ss, R_norm;
+    double f_value, psi, trace_G, trace_J, sum, ss, R_norm;
     double t, t1, t2; /* t is the step lenght, which is the minimum of the partial step length t1
 * and the full step length t2 */
     A.resize(m + p);
@@ -119,13 +122,13 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
      */
 
     /* compute the trace of the original matrix G */
-    c1 = 0.0;
+    trace_G = 0.0;
     for (i = 0; i < n; i++)
     {
-        c1 += G(i, i);
+        trace_G += G(i, i);
     }
     /* decompose the matrix G in the form L^T L */
-    cholesky_decomposition(G);
+    CholeskyDecomposition<double>   chol(G);
 #ifdef QUADPROGPP_ENABLE_TRACING
     print_matrix("G", G);
 #endif
@@ -139,32 +142,28 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
     R_norm = 1.0; /* this variable will hold the norm of the matrix R */
 
     /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
-    c2 = 0.0;
+    chol.invert_upper(G,J,z,d);
+    trace_J = 0.0;
     for (i = 0; i < n; i++)
     {
-        d[i] = 1.0;
-        forward_elimination(G, z, d);
-        for (j = 0; j < n; j++)
-            J(i, j) = z[j];
-        c2 += z[i];
-        d[i] = 0.0;
+        trace_J += J(i, i);
     }
 #ifdef QUADPROGPP_ENABLE_TRACING
     print_matrix("J", J);
 #endif
 
-    /* c1 * c2 is an estimate for cond(G) */
+    /* trace_G * trace_J is an estimate for cond(G) */
 
     /*
       * Find the unconstrained minimizer of the quadratic form 0.5 * x G x + g0 x
      * this is a feasible point in the dual space
      * x = G^-1 * g0
      */
-    cholesky_solve(G, x, g0);
+    chol.solve(G, x, g0);
     for (i = 0; i < n; i++)
         x[i] = -x[i];
     /* and compute the current solution value */
-    f_value = 0.5 * scalar_product(g0, x);
+    f_value = 0.5 * g0.dot(x);
 #ifdef QUADPROGPP_ENABLE_TRACING
     std::cout << "Unconstrained solution: " << f_value << std::endl;
     print_vector("x", x);
@@ -189,8 +188,8 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
         /* compute full step length t2: i.e., the minimum step in primal space s.t. the contraint
           becomes feasible */
         t2 = 0.0;
-        if (fabs(scalar_product(z, z)) > std::numeric_limits<double>::epsilon()) // i.e. z != 0
-            t2 = (-scalar_product(np, x) - ce0[i]) / scalar_product(z, np);
+        if (fabs(z.dot(z)) > std::numeric_limits<double>::epsilon()) // i.e. z != 0
+            t2 = (-np.dot(x) - ce0[i]) / z.dot(np);
 
         /* set x = x + t2 * z */
         for (k = 0; k < n; k++)
@@ -202,7 +201,7 @@ double Solver::solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
             u[k] -= t2 * r[k];
 
         /* compute the new solution value */
-        f_value += 0.5 * (t2 * t2) * scalar_product(z, np);
+        f_value += 0.5 * (t2 * t2) * z.dot(np);
         A[i] = -i - 1;
 
         if (!add_constraint(R, J, d, iq, R_norm))
@@ -233,22 +232,22 @@ l1:
     ss = 0.0;
     psi = 0.0; /* this value will contain the sum of all infeasibilities */
     ip = 0; /* ip will be the index of the chosen violated constraint */
+
+
+    // s = CI^T*x + ci0
+    multiply_and_add(s,CI,x,ci0);
     for (i = 0; i < m; i++)
     {
         iaexcl[i] = true;
-        sum = 0.0;
-        for (j = 0; j < n; j++)
-            sum += CI(j, i) * x[j];
-        sum += ci0[i];
-        s[i] = sum;
-        psi += std::min(0.0, sum);
+        psi += std::min(0.0, s[i]);
     }
+
 #ifdef QUADPROGPP_ENABLE_TRACING
     print_vector("s", s, m);
 #endif
 
 
-    if (fabs(psi) <= m * std::numeric_limits<double>::epsilon() * c1 * c2* 100.0)
+    if (fabs(psi) <= m * std::numeric_limits<double>::epsilon() * trace_G * trace_J* 100.0)
     {
         /* numerically there are not infeasibilities anymore */
         q = iq;
@@ -263,8 +262,7 @@ l1:
         A_old[i] = A[i];
     }
     /* and for x */
-    for (i = 0; i < n; i++)
-        x_old[i] = x[i];
+    x_old = x;
 
 l2: /* Step 2: check for feasibility and determine a new S-pair */
     for (i = 0; i < m; i++)
@@ -327,9 +325,9 @@ l2a:/* Step 2a: determine step direction */
         }
     }
     /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
-    if (fabs(scalar_product(z, z))  > std::numeric_limits<double>::epsilon()) // i.e. z != 0
+    if (fabs(z.dot(z))  > std::numeric_limits<double>::epsilon()) // i.e. z != 0
     {
-        t2 = -s[ip] / scalar_product(z, np);
+        t2 = -s[ip] / z.dot(np);
         if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
             t2 = inf;
     }
@@ -377,7 +375,7 @@ l2a:/* Step 2a: determine step direction */
     for (k = 0; k < n; k++)
         x[k] += t * z[k];
     /* update the solution value */
-    f_value += t * scalar_product(z, np) * (0.5 * t + u[iq]);
+    f_value += t * z.dot(np) * (0.5 * t + u[iq]);
     /* u = u + t * [-r 1] */
     for (k = 0; k < iq; k++)
         u[k] -= t * r[k];
@@ -416,8 +414,7 @@ l2a:/* Step 2a: determine step direction */
                 u[i] = u_old[i];
                 iai[A[i]] = -1;
             }
-            for (i = 0; i < n; i++)
-                x[i] = x_old[i];
+            x = x_old;
             goto l2; /* go to step 2 */
         }
         else
@@ -665,81 +662,4 @@ inline double distance(double a, double b)
     }
     return a1 * std::sqrt(2.0);
 }
-
-
-
-void cholesky_decomposition(QPPP_MATRIX(double)& A)
-{
-    register int i, j, k, n = A.rows();
-    register double sum;
-
-    for (i = 0; i < n; i++)
-    {
-        for (j = i; j < n; j++)
-        {
-            sum = A(i, j);
-            for (k = i - 1; k >= 0; k--)
-                sum -= A(i, k)*A(j, k);
-            if (i == j)
-            {
-                if (sum <= 0.0)
-                {
-                    std::ostringstream os;
-                    // raise error
-#ifdef QUADPROGPP_ENABLE_TRACING
-                    print_matrix("A", A);
-#endif
-                    os << "Error in cholesky decomposition, sum: " << sum;
-                    throw std::logic_error(os.str());
-                    exit(-1);
-                }
-                A(i, i) = std::sqrt(sum);
-            }
-            else
-                A(j, i) = sum / A(i, i);
-        }
-        for (k = i + 1; k < n; k++)
-            A(i, k) = A(k, i);
-    }
-}
-
-void cholesky_solve(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& b)
-{
-    int n = L.rows();
-    QPPP_VECTOR(double) y(n);
-
-    /* Solve L * y = b */
-    forward_elimination(L, y, b);
-    /* Solve L^T * x = y */
-    backward_elimination(L, x, y);
-}
-
-inline void forward_elimination(const QPPP_MATRIX(double)& L, QPPP_VECTOR(double)& y, const QPPP_VECTOR(double)& b)
-{
-    register int i, j, n = L.rows();
-
-    y[0] = b[0] / L(0, 0);
-    for (i = 1; i < n; i++)
-    {
-        y[i] = b[i];
-        for (j = 0; j < i; j++)
-            y[i] -= L(i, j) * y[j];
-        y[i] = y[i] / L(i, i);
-    }
-}
-
-inline void backward_elimination(const QPPP_MATRIX(double)& U, QPPP_VECTOR(double)& x, const QPPP_VECTOR(double)& y)
-{
-    register int i, j, n = U.rows();
-
-    x[n - 1] = y[n - 1] / U(n - 1, n - 1);
-    for (i = n - 2; i >= 0; i--)
-    {
-        x[i] = y[i];
-        for (j = i + 1; j < n; j++)
-            x[i] -= U(i, j) * x[j];
-        x[i] = x[i] / U(i, i);
-    }
-}
-
 } // namespace QuadProgpp

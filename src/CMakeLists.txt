@@ -3,10 +3,10 @@
 
 if(QUADPROGPP_ENABLE_EIGEN)
     set(sources     QuadProg++.cc)
-    set(headers     EigenHelpers.hh QuadProg++.hh config.hh)
+    set(headers     QuadProg++.hh config.hh)
 else(QUADPROGPP_ENABLE_EIGEN)
     set(sources     Array.cc QuadProg++.cc)
-    set(headers     Array.hh ArrayHelpers.hh QuadProg++.hh config.hh)
+    set(headers     Array.hh QuadProg++.hh config.hh)
 endif(QUADPROGPP_ENABLE_EIGEN)
 
 set(library_sources ${sources})

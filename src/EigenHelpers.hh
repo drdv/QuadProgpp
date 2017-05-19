@@ -8,14 +8,6 @@
 namespace QuadProgpp
 {
 
-// Utility function for computing the scalar product
-template<typename T>
-inline double scalar_product(const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& y)
-{
-    return (x.transpose()*y);
-}
-
-
 template<typename T>
 void print_matrix(const char* name, const QPPP_MATRIX(T)& A, int n = -1, int m = -1)
 {
@@ -39,4 +31,41 @@ void print_vector(const char* name, const QPPP_VECTOR(T)& v, int n = -1)
   std::cout << v.head(n) << std::endl;
 }
 
+
+// Utility functions for computing the Cholesky decomposition and solving
+// linear systems
+template<typename T>
+class CholeskyDecomposition
+{
+    public:
+        template<class t_Derived>
+        CholeskyDecomposition(Eigen::PlainObjectBase<t_Derived>& A) : lltOfA(A)
+        {
+        }
+
+
+        template<class t_Derived>
+        void solve(Eigen::PlainObjectBase<t_Derived>& A, QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+        {
+            x = lltOfA.solve(b);
+        }
+
+
+        template<class t_Derived>
+        void invert_upper(Eigen::PlainObjectBase<t_Derived>& A, QPPP_MATRIX(T)& J, QPPP_VECTOR(T)& z, QPPP_VECTOR(T)& d)
+        {
+            J.setIdentity();
+            lltOfA.matrixU().solveInPlace( J );
+        }
+
+    private:
+        Eigen::LLT< Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> > lltOfA;
+};
+
+
+template<typename T>
+void multiply_and_add(QPPP_VECTOR(T)& y, const QPPP_MATRIX(T)& A, const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+{
+    y.noalias() = A.transpose()*x + b;
+}
 } // namesace QuadProgpp
