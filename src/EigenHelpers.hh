@@ -11,24 +11,30 @@ namespace QuadProgpp
 template<typename T>
 void print_matrix(const char* name, const QPPP_MATRIX(T)& A, int n = -1, int m = -1)
 {
-  if (n == -1)
-    n = A.rows();
-  if (m == -1)
-    m = A.cols();
+    if (n == -1)
+    {
+        n = A.rows();
+    }
+    if (m == -1)
+    {
+        m = A.cols();
+    }
 
-  std::cout << name << ": " << std::endl << " ";
-  std::cout << A.block(0, 0, n, m) << std::endl;
+    std::cout << name << ": " << std::endl << " ";
+    std::cout << A.block(0, 0, n, m) << std::endl;
 }
 
 
 template<typename T>
 void print_vector(const char* name, const QPPP_VECTOR(T)& v, int n = -1)
 {
-  if (n == -1)
-    n = v.rows();
+    if (n == -1)
+    {
+        n = v.rows();
+    }
 
-  std::cout << name << ": " << std::endl << " ";
-  std::cout << v.head(n) << std::endl;
+    std::cout << name << ": " << std::endl << " ";
+    std::cout << v.head(n) << std::endl;
 }
 
 
@@ -39,8 +45,9 @@ class CholeskyDecomposition
 {
     public:
         template<class t_Derived>
-        CholeskyDecomposition(Eigen::PlainObjectBase<t_Derived>& A) : lltOfA(A)
+        void compute (Eigen::PlainObjectBase<t_Derived>& A)
         {
+            lltOfA.compute(A);
         }
 
 
@@ -54,14 +61,34 @@ class CholeskyDecomposition
         template<class t_Derived>
         void invert_upper(Eigen::PlainObjectBase<t_Derived>& A, QPPP_MATRIX(T)& J, QPPP_VECTOR(T)& z, QPPP_VECTOR(T)& d)
         {
+            // this is slightly slower
+            /*
             J.setIdentity();
             lltOfA.matrixU().solveInPlace( J );
+            */
+
+
+            int n = A.rows();
+            // a copy is needed since row-wise access to triangular matrix
+            // matrixU is not supported
+            J = lltOfA.matrixU();
+
+            // in-place inversion of upper triangular J
+            for (int i = n-1; i >=0; --i)
+            {
+                J(i,i) = 1.0 / J(i, i);
+                for (int j = i-1; j >= 0; --j)
+                {
+                    double tmp = J.row(j).segment(j+1, i-j)*J.col(i).segment(j+1, i-j);
+                    J(j, i) = - tmp / J(j,j);
+                }
+            }
         }
+
 
     private:
         Eigen::LLT< Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> > lltOfA;
 };
-
 
 
 template<typename T>

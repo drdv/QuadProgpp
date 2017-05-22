@@ -85,7 +85,6 @@ TODO deprecated?
 #endif
 
 
-
 namespace QuadProgpp
 {
     class Status
@@ -102,12 +101,8 @@ namespace QuadProgpp
     class Solver
     {
         public:
-            int     iter;
-            double  f_value;
-
-
-        public:
             Solver();
+            ~Solver();
 
             Status::Value solve(   QPPP_MATRIX(double)& G,
                             QPPP_VECTOR(double)& g0,
@@ -118,37 +113,8 @@ namespace QuadProgpp
                             QPPP_VECTOR(double)& x);
 
         private:
-            double  inf;
-
-            QPPP_MATRIX(double) R;
-            QPPP_MATRIX(double) J;
-            QPPP_VECTOR(double) ci_violations;
-            QPPP_VECTOR(double) z;
-            QPPP_VECTOR(double) r;
-            QPPP_VECTOR(double) d;
-            QPPP_VECTOR(double) np;
-            QPPP_VECTOR(double) u;
-            QPPP_VECTOR(double) x_old;
-            QPPP_VECTOR(double) u_old;
-            QPPP_VECTOR(int) A;
-            QPPP_VECTOR(int) A_old;
-            QPPP_VECTOR(int) iai;
-            QPPP_VECTOR(bool) iaexcl;
-
-        private:
-            bool add_constraint(    QPPP_MATRIX(double)& R,
-                                    QPPP_MATRIX(double)& J,
-                                    QPPP_VECTOR(double)& d,
-                                    int& iq,
-                                    double& rnorm);
-            void delete_constraint( QPPP_MATRIX(double)& R,
-                                    QPPP_MATRIX(double)& J,
-                                    QPPP_VECTOR(int)& A,
-                                    QPPP_VECTOR(double)& u,
-                                    int n,
-                                    int p,
-                                    int& iq,
-                                    int l);
+            class Implementation;
+            Implementation *impl;
     };
 } // namespace QuadProgpp
 

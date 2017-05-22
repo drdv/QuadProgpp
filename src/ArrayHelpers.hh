@@ -63,7 +63,7 @@ template<typename T>
 class CholeskyDecomposition
 {
     public:
-        CholeskyDecomposition(QPPP_MATRIX(T)& A)
+        void compute (QPPP_MATRIX(T)& A)
         {
             register int i, j, k, n = A.rows();
             register double sum;
