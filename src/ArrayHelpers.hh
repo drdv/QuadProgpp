@@ -193,7 +193,10 @@ class CholeskyDecomposition
 
 
 template<typename T>
-void multiply_and_add(QPPP_VECTOR(T)& y, const QPPP_MATRIX(T)& A, const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+inline void multiply_and_add(   QPPP_VECTOR(T)& y,
+                                const QPPP_MATRIX(T)& A,
+                                const QPPP_VECTOR(T)& x,
+                                const QPPP_VECTOR(T)& b)
 {
     for (int i = 0; i < A.cols(); i++)
     {
@@ -202,6 +205,72 @@ void multiply_and_add(QPPP_VECTOR(T)& y, const QPPP_MATRIX(T)& A, const QPPP_VEC
             sum += A(j, i) * x[j];
         sum += b[i];
         y[i] = sum;
+    }
+}
+
+
+template<typename T>
+inline void multiply_and_add_i( QPPP_VECTOR(T)& y,
+                                const QPPP_MATRIX(T)& A,
+                                const QPPP_VECTOR(T)& x,
+                                const QPPP_VECTOR(T)& b,
+                                const int index)
+{
+    double sum = 0.0;
+    for (int k = 0; k < x.size(); ++k)
+        sum += A(k, index) * x[k];
+    y[index] = sum + b[index];
+}
+
+
+//-----------------------------------------------------------------------
+// Utility functions for updating some data needed by the solution method
+//-----------------------------------------------------------------------
+template<typename T>
+inline void compute_d(QPPP_VECTOR(T)& d, const QPPP_MATRIX(T)& J, const QPPP_VECTOR(T)& np)
+{
+    register int i, j, n = d.size();
+    register double sum;
+
+    /* compute d = H^T * np */
+    for (i = 0; i < n; i++)
+    {
+        sum = 0.0;
+        for (j = 0; j < n; j++)
+            sum += J(j, i) * np[j];
+        d[i] = sum;
+    }
+}
+
+
+template<typename T>
+inline void update_z(QPPP_VECTOR(T)& z, const QPPP_MATRIX(T)& J, const QPPP_VECTOR(T)& d, const int iq)
+{
+    register int i, j, n = z.size();
+
+    /* setting of z = H * d */
+    for (i = 0; i < n; i++)
+    {
+        z[i] = 0.0;
+        for (j = iq; j < n; j++)
+            z[i] += J(i, j) * d[j];
+    }
+}
+
+
+template<typename T>
+inline void update_r(const QPPP_MATRIX(T)& R, QPPP_VECTOR(T)& r, const QPPP_VECTOR(T)& d, const int iq)
+{
+    register int i, j, n = d.size();
+    register double sum;
+
+    /* setting of r = R^-1 d */
+    for (i = iq - 1; i >= 0; i--)
+    {
+        sum = 0.0;
+        for (j = i + 1; j < iq; j++)
+            sum += R(i, j) * r[j];
+        r[i] = (d[i] - sum) / R(i, i);
     }
 }
 } //namespace QuadProgpp

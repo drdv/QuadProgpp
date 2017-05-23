@@ -911,6 +911,7 @@ public:
     inline void setColumn(const unsigned int index, const Matrix<T>& v);
     inline void setColumns(const std::set<unsigned int>& indexes, const Matrix<T>& m);
 
+    inline double trace() const;
 
     inline unsigned int rows() const {
         return n;    // number of rows
@@ -1313,6 +1314,17 @@ inline void Matrix<T>::setColumns(const std::set<unsigned int>& indexes, const M
         }
         j++;
     }
+}
+
+template <typename T>
+inline double Matrix<T>::trace() const
+{
+    double trace_val = 0.0;
+    for (int i = 0; i < std::min(n,m); ++i)
+    {
+        trace_val += v[i][i];
+    }
+    return (trace_val);
 }
 
 template <typename T>

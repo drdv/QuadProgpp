@@ -30,53 +30,6 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 
 namespace QuadProgpp
 {
-//-----------------------------------------------------------------------
-// Utility functions for updating some data needed by the solution method
-//-----------------------------------------------------------------------
-
-inline void compute_d(QPPP_VECTOR(double)& d, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& np)
-{
-    register int i, j, n = d.size();
-    register double sum;
-
-    /* compute d = H^T * np */
-    for (i = 0; i < n; i++)
-    {
-        sum = 0.0;
-        for (j = 0; j < n; j++)
-            sum += J(j, i) * np[j];
-        d[i] = sum;
-    }
-}
-
-inline void update_z(QPPP_VECTOR(double)& z, const QPPP_MATRIX(double)& J, const QPPP_VECTOR(double)& d, const int iq)
-{
-    register int i, j, n = z.size();
-
-    /* setting of z = H * d */
-    for (i = 0; i < n; i++)
-    {
-        z[i] = 0.0;
-        for (j = iq; j < n; j++)
-            z[i] += J(i, j) * d[j];
-    }
-}
-
-inline void update_r(const QPPP_MATRIX(double)& R, QPPP_VECTOR(double)& r, const QPPP_VECTOR(double)& d, const int iq)
-{
-    register int i, j, n = d.size();
-    register double sum;
-
-    /* setting of r = R^-1 d */
-    for (i = iq - 1; i >= 0; i--)
-    {
-        sum = 0.0;
-        for (j = i + 1; j < iq; j++)
-            sum += R(i, j) * r[j];
-        r[i] = (d[i] - sum) / R(i, i);
-    }
-}
-
 
 //-----------------------------------------------------------------------
 // Utility function for computing the euclidean distance between two numbers
@@ -373,11 +326,8 @@ class Solver::Implementation
              */
 
             /* compute the trace of the original matrix G */
-            trace_G = 0.0;
-            for (int i = 0; i < num_var; ++i)
-            {
-                trace_G += G(i, i);
-            }
+            trace_G = G.trace();
+
             /* decompose the matrix G in the form L^T L */
             chol.compute(G);
 #ifdef QUADPROGPP_ENABLE_TRACING
@@ -388,11 +338,8 @@ class Solver::Implementation
 
             /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
             chol.invert_upper(G,J);
-            trace_J = 0.0;
-            for (int i = 0; i < num_var; ++i)
-            {
-                trace_J += J(i, i);
-            }
+            trace_J = J.trace();
+
 #ifdef QUADPROGPP_ENABLE_TRACING
             print_matrix("J", J);
 #endif
@@ -703,10 +650,7 @@ class Solver::Implementation
 #endif
 
             /* update s[ip] = CI * x + ci0 */
-            double sum = 0.0;
-            for (int k = 0; k < num_var; ++k)
-                sum += CI(k, ip) * x[k];
-            ci_violations[ip] = sum + ci0[ip];
+            multiply_and_add_i(ci_violations, CI, x, ci0, ip);
 
 #ifdef QUADPROGPP_ENABLE_TRACING
             print_vector("s", ci_violations, num_ci);

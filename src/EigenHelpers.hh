@@ -52,7 +52,9 @@ class CholeskyDecomposition
 
 
         template<class t_Derived>
-        void solve(Eigen::PlainObjectBase<t_Derived>& A, QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+        void solve( Eigen::PlainObjectBase<t_Derived>& A,
+                    QPPP_VECTOR(T)& x,
+                    const QPPP_VECTOR(T)& b)
         {
             x = lltOfA.solve(b);
         }
@@ -93,9 +95,13 @@ class CholeskyDecomposition
 };
 
 
-template<typename T>
-void multiply_and_add(QPPP_VECTOR(T)& y, const QPPP_MATRIX(T)& A, const QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
-{
-    y.noalias() = A.transpose()*x + b;
-}
+#define multiply_and_add(y,A,x,b)           y.noalias() = A.transpose()*x + b
+#define multiply_and_add_i(y,A,x,b,index)   y(index) = A.col(index).transpose()*x + b(index)
+
+//-----------------------------------------------------------------------
+// Utility functions for updating some data needed by the solution method
+//-----------------------------------------------------------------------
+#define compute_d(d,J,np)   d.noalias() = J.transpose() * np;
+#define update_z(z,J,d,iq)  z.noalias() = J.rightCols(num_var-iq) * d.tail(num_var-iq);
+#define update_r(R,r,d,iq)  r.head(iq) = R.topLeftCorner(iq,iq).triangularView<Eigen::Upper>().solve(d.head(iq));
 } // namesace QuadProgpp
