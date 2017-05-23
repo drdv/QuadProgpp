@@ -16,7 +16,10 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 #include "QuadProg++.hh"
+
+
 
 #ifdef QUADPROGPP_ENABLE_EIGEN
 
@@ -28,8 +31,46 @@ File $Id: QuadProg++.cc 232 2007-06-21 12:29:00Z digasper $
 
 #endif
 
+
+
+#ifdef QUADPROGPP_ENABLE_TRACING
+
+#define QPPP_TRACE_MESSAGE(msg)                         std::cout << msg
+#define QPPP_TRACE_MATRIX(name, matrix, rows, cols)     print_matrix(name, matrix, rows, cols)
+#define QPPP_TRACE_VECTOR(name, matrix, rows)           print_vector(name, matrix, rows)
+
+#else
+
+#define QPPP_TRACE_MESSAGE(msg)
+#define QPPP_TRACE_MATRIX(name, matrix, rows, cols)
+#define QPPP_TRACE_VECTOR(name, matrix, rows)
+
+#endif
+
+
+
 namespace QuadProgpp
 {
+
+template<typename T>
+void print_vector(const char* name, const std::vector<T> & v, int n = -1)
+{
+    std::ostringstream s;
+    std::string t;
+    if (n == -1)
+        n = v.size();
+
+    s << name << ": " << std::endl << " ";
+    for (int i = 0; i < n; i++)
+    {
+        s << v[i] << ", ";
+    }
+    t = s.str();
+    t = t.substr(0, t.size() - 2); // To remove the trailing space and comma
+
+    std::cout << t << std::endl;
+}
+
 
 //-----------------------------------------------------------------------
 // Utility function for computing the euclidean distance between two numbers
@@ -53,10 +94,20 @@ inline double distance(double a, double b)
 }
 
 
+class ConstraintStatus
+{
+    public:
+        enum Status
+        {
+            INACTIVE = 0,
+            ACTIVE = 1
+        };
+};
+
+
 class Solver::Implementation
 {
     public:
-        int     active_set_size;  /* size of the active set A (containing the indices of the active constraints) */
         int     iter;
         double  f_value;
 
@@ -77,23 +128,21 @@ class Solver::Implementation
         QPPP_VECTOR(double) u_old;
         QPPP_VECTOR(int) A;
         QPPP_VECTOR(int) A_old;
-        QPPP_VECTOR(int) iai;
         QPPP_VECTOR(bool) iaexcl;
+
+        std::vector<ConstraintStatus::Status> ci_status;
 
         CholeskyDecomposition<double>   chol;
 
 
     private:
-        bool add_constraint(QPPP_MATRIX(double)& R,
-                            QPPP_MATRIX(double)& J,
-                            QPPP_VECTOR(double)& d,
-                            int& iq,
+        bool add_constraint(QPPP_VECTOR(double)& d,
                             double& R_norm,
+                            const int iq,
                             const int num_var)
         {
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Add constraint " << iq << '/';
-#endif
+            QPPP_TRACE_MESSAGE("Add constraint " << iq << '/');
+
             register int i, j, k;
             double cc, ss, h, t1, t2, xny;
 
@@ -136,47 +185,41 @@ class Solver::Implementation
                     J(k, j) = xny * (t1 + J(k, j - 1)) - t2;
                 }
             }
-            /* update the number of constraints added*/
-            iq++;
-            /* To update R we have to put the iq components of the d vector
-              into column iq - 1 of R
+            /* To update R we have to put the iq+1 components of the d vector
+              into column iq of R
               */
-            for (i = 0; i < iq; i++)
-                R(i, iq - 1) = d[i];
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << iq << std::endl;
-            print_matrix("R", R, iq, iq);
-            print_matrix("J", J);
-            print_vector("d", d, iq);
-#endif
+            for (i = 0; i < iq+1; i++)
+                R(i, iq) = d[i];
 
-            if (std::fabs(d[iq - 1]) <= epsilon * R_norm)
+            QPPP_TRACE_MESSAGE(iq << std::endl);
+            QPPP_TRACE_MATRIX("R", R, iq+1, iq+1);
+            QPPP_TRACE_MATRIX("J", J, J.rows(), J.cols());
+            QPPP_TRACE_VECTOR("d", d, d.size());
+
+            if (std::fabs(d[iq]) <= epsilon * R_norm)
             {
                 // problem degenerate
                 return false;
             }
-            R_norm = std::max<double>(R_norm, std::fabs(d[iq - 1]));
+            R_norm = std::max<double>(R_norm, std::fabs(d[iq]));
             return true;
         }
 
 
-        void delete_constraint( QPPP_MATRIX(double)& R,
-                                QPPP_MATRIX(double)& J,
-                                QPPP_VECTOR(int)& A,
-                                QPPP_VECTOR(double)& u,
-                                int& iq,
+        void delete_constraint( QPPP_VECTOR(double)& u,
+                                int iq,
                                 int l,
                                 const int num_var,
                                 const int num_ce)
         {
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Delete constraint " << l << ' ' << iq;
-#endif
+            QPPP_TRACE_MESSAGE("Delete constraint " << l << ' ' << iq);
+
+
             register int i, j, k, qq = -1; // just to prevent warnings from smart compilers
             double cc, ss, h, xny, t1, t2;
 
             /* Find the index qq for active constraint l to be removed */
-            for (i = num_ce; i < iq; i++)
+            for (i = 0; i < iq - num_ce; i++)
                 if (A[i] == l)
                 {
                     qq = i;
@@ -186,28 +229,19 @@ class Solver::Implementation
             /* remove the constraint from the active set and the duals */
             for (i = qq; i < iq - 1; i++)
             {
-                A[i] = A[i + 1];
+                A[i-num_ce] = A[i + 1 - num_ce];
                 u[i] = u[i + 1];
                 for (j = 0; j < num_var; j++)
                     R(j, i) = R(j, i + 1);
             }
 
-            A[iq - 1] = A[iq];
+            A[iq - 1 - num_ce] = A[iq - num_ce];
             u[iq - 1] = u[iq];
-            A[iq] = 0;
-            u[iq] = 0.0;
-            for (j = 0; j < iq; j++)
-                R(j, iq - 1) = 0.0;
             /* constraint has been fully removed */
-            iq--;
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << '/' << iq << std::endl;
-#endif
 
-            if (iq == 0)
-                return;
+            QPPP_TRACE_MESSAGE('/' << iq << std::endl);
 
-            for (j = qq; j < iq; j++)
+            for (j = qq; j < iq-1; j++)
             {
                 cc = R(j, j);
                 ss = R(j + 1, j);
@@ -227,7 +261,7 @@ class Solver::Implementation
                     R(j, j) = h;
 
                 xny = ss / (1.0 + cc);
-                for (k = j + 1; k < iq; k++)
+                for (k = j + 1; k < iq-1; k++)
                 {
                     t1 = R(j, k);
                     t2 = R(j + 1, k);
@@ -302,47 +336,35 @@ class Solver::Implementation
                 throw std::logic_error(msg.str());
             }
             x.resize(num_var);
-            J.resize(num_var, num_var);
-            z.resize(num_var);
-            r.resize(num_ce + num_ci);
-            d.resize(num_var);
-            np.resize(num_var);
-            u.resize(num_ce + num_ci);
-            double trace_G, trace_J;
-            A.resize(num_ce + num_ci);
 
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << std::endl << "Starting solve_quadprog" << std::endl;
-            print_matrix("G", G);
-            print_vector("g0", g0);
-            print_matrix("CE", CE);
-            print_vector("ce0", ce0);
-            print_matrix("CI", CI);
-            print_vector("ci0", ci0);
-#endif
+
+            QPPP_TRACE_MESSAGE(std::endl << "Starting solve_quadprog" << std::endl);
+            QPPP_TRACE_MATRIX("G", G, G.rows(), G.cols());
+            QPPP_TRACE_VECTOR("g0", g0, g0.size());
+            QPPP_TRACE_MATRIX("CE", CE, CE.rows(), CE.cols());
+            QPPP_TRACE_VECTOR("ce0", ce0, ce0.size());
+            QPPP_TRACE_MATRIX("CI", CI, CI.rows(), CI.cols());
+            QPPP_TRACE_VECTOR("ci0", ci0, ci0.size());
+
 
             /*
              * Preprocessing phase
              */
 
+            double trace_G, trace_J;
             /* compute the trace of the original matrix G */
             trace_G = G.trace();
-
             /* decompose the matrix G in the form L^T L */
             chol.compute(G);
-#ifdef QUADPROGPP_ENABLE_TRACING
-            print_matrix("G", G);
-#endif
-            R.resize(num_var, num_var);
-            double R_norm = 1.0; /* this variable will hold the norm of the matrix R */
-
             /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
+            J.resize(num_var, num_var);
             chol.invert_upper(G,J);
             trace_J = J.trace();
 
-#ifdef QUADPROGPP_ENABLE_TRACING
-            print_matrix("J", J);
-#endif
+            QPPP_TRACE_MATRIX("L", G, G.rows(), G.cols());
+            QPPP_TRACE_MATRIX("J", J, J.rows(), J.cols());
+
+
 
             /* trace_G * trace_J is an estimate for cond(G) */
 
@@ -356,28 +378,35 @@ class Solver::Implementation
                 x[i] = -x[i];
             /* and compute the current solution value */
             f_value = 0.5 * g0.dot(x);
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Unconstrained solution: " << f_value << std::endl;
-            print_vector("x", x);
-#endif
+
+
+            QPPP_TRACE_MESSAGE("Unconstrained solution: " << f_value << std::endl);
+            QPPP_TRACE_VECTOR("x", x, x.size());
+
 
             /* Add equality constraints to the working set A */
-            int iq = 0;
+            z.resize(num_var);
+            r.resize(num_ce + num_ci);
+            d.resize(num_var);
+            np.resize(num_var);
+            u.resize(num_ce + num_ci);
+            R.resize(num_var, num_var);
+            double R_norm = 1.0; /* this variable will hold the norm of the matrix R */
+
             for (int i = 0; i < num_ce; ++i)
             {
                 for (int j = 0; j < num_var; ++j)
                     np[j] = CE(j, i);
                 compute_d(d, J, np);
-                update_z(z, J, d, iq);
-                update_r(R, r, d, iq);
+                update_z(z, J, d, i);
+                update_r(R, r, d, i);
 
-                double z_dot_np = z.dot(np);
-#ifdef QUADPROGPP_ENABLE_TRACING
-                print_matrix("R", R, num_var, iq);
-                print_vector("z", z);
-                print_vector("r", r, iq);
-                print_vector("d", d);
-#endif
+
+                QPPP_TRACE_MATRIX("R", R, num_var, i);
+                QPPP_TRACE_VECTOR("z", z, num_var);
+                QPPP_TRACE_VECTOR("r", r, i);
+                QPPP_TRACE_VECTOR("d", d, num_var);
+
 
                 /*
                  * compute full step length t2: i.e., the minimum step in
@@ -385,22 +414,25 @@ class Solver::Implementation
                  */
                 double t2 = 0.0;
                 if (z.dot(z) > epsilon) // i.e. z != 0
+                {
+                    double z_dot_np = z.dot(np);
+
                     t2 = (-np.dot(x) - ce0[i]) / z_dot_np;
 
-                /* set x = x + t2 * z */
-                for (int k = 0; k < num_var; ++k)
-                    x[k] += t2 * z[k];
+                    /* set x = x + t2 * z */
+                    for (int k = 0; k < num_var; ++k)
+                        x[k] += t2 * z[k];
 
-                /* set u = u+ */
-                u[iq] = t2;
-                for (int k = 0; k < iq; ++k)
-                    u[k] -= t2 * r[k];
+                    /* set u = u+ */
+                    for (int k = 0; k < i; ++k)
+                        u[k] -= t2 * r[k];
 
-                /* compute the new solution value */
-                f_value += 0.5 * t2 * t2 * z_dot_np;
-                A[i] = -i - 1;
+                    /* compute the new solution value */
+                    f_value += 0.5 * t2 * t2 * z_dot_np;
+                }
+                u[i] = t2;
 
-                if (!add_constraint(R, J, d, iq, R_norm, num_var))
+                if (!add_constraint(d, R_norm, i, num_var))
                 {
                     // Equality constraints are linearly dependent
                     throw std::runtime_error("Constraints are linearly dependent");
@@ -409,17 +441,16 @@ class Solver::Implementation
             }
 
 
-            /* set iai = K \ A */
-            iai.resize(num_ci + num_ce);
-            for (int i = 0; i < num_ci; ++i)
-                iai[i] = i;
+            /* set ci_status = K \ A */
+            ci_status.assign(num_ci, ConstraintStatus::INACTIVE);
 
-            A_old.resize(num_ci + num_ce);
+            A.resize(num_ci);
+            A_old.resize(num_ci);
             x_old.resize(num_var);
             u_old.resize(num_ci + num_ce);
 
             ci_violations.resize(num_ci);
-            iaexcl.resize(num_ci + num_ce);
+            iaexcl.resize(num_ci);
             iter = 0;
             /*
              * t is the step lenght, which is the minimum of the partial step
@@ -427,40 +458,40 @@ class Solver::Implementation
              */
             double t, t1, t2;
 
+            int iq = num_ce;
+
         l1:
             ++iter;
-#ifdef QUADPROGPP_ENABLE_TRACING
-            print_vector("x", x);
-#endif
+            QPPP_TRACE_VECTOR("x", x, x.size());
+
             /* step 1: choose a violated constraint */
-            for (int i = num_ce; i < iq; ++i)
+            for (int i = 0; i < iq-num_ce; ++i)
             {
-                iai[ A[i] ] = -1;
+                ci_status[ A[i] ] = ConstraintStatus::ACTIVE;
             }
 
             /* compute s[x] = ci^T * x + ci0 for all elements of K \ A */
             double ss = 0.0;
-            double psi = 0.0; /* this value will contain the sum of all infeasibilities */
             int ip = 0; /* ip will be the index of the chosen violated constraint */
 
 
             // ci_violations = CI^T*x + ci0
             multiply_and_add(ci_violations,CI,x,ci0);
+
+
+            QPPP_TRACE_VECTOR("s", ci_violations, num_ci);
+
+
+            double psi = 0.0; /* this value will contain the sum of all infeasibilities */
             for (int i = 0; i < num_ci; ++i)
             {
                 iaexcl[i] = true;
                 psi += std::min(0.0, ci_violations[i]);
             }
 
-#ifdef QUADPROGPP_ENABLE_TRACING
-            print_vector("s", ci_violations, num_ci);
-#endif
-
-
             if (std::fabs(psi) <= num_ci * epsilon * trace_G * trace_J * 100.0)
             {
                 /* numerically there are not infeasibilities anymore */
-                active_set_size = iq;
                 return (Status::OK);
             }
 
@@ -468,6 +499,9 @@ class Solver::Implementation
             for (int i = 0; i < iq; ++i)
             {
                 u_old[i] = u[i];
+            }
+            for (int i = 0; i < iq-num_ce; ++i)
+            {
                 A_old[i] = A[i];
             }
             /* and for x */
@@ -476,7 +510,7 @@ class Solver::Implementation
         l2: /* Step 2: check for feasibility and determine a new S-pair */
             for (int i = 0; i < num_ci; ++i)
             {
-                if (ci_violations[i] < ss && iai[i] != -1 && iaexcl[i])
+                if ((ci_violations[i] < ss) && (ci_status[i] == ConstraintStatus::INACTIVE) && (iaexcl[i]))
                 {
                     ss = ci_violations[i];
                     ip = i;
@@ -484,7 +518,6 @@ class Solver::Implementation
             }
             if (ss >= 0.0)
             {
-                active_set_size = iq;
                 return (Status::OK);
             }
 
@@ -494,12 +527,12 @@ class Solver::Implementation
             /* set u = [u 0]^T */
             u[iq] = 0.0;
             /* add ip to the active set A */
-            A[iq] = ip;
+            A[iq-num_ce] = ip;
 
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Trying with constraint " << ip << std::endl;
-            print_vector("np", np);
-#endif
+
+            QPPP_TRACE_MESSAGE("Trying with constraint " << ip << std::endl);
+            QPPP_TRACE_VECTOR("np", np, np.size());
+
 
         l2a:/* Step 2a: determine step direction */
             /* compute z = H np: the step direction in the primal space (through J, see the paper) */
@@ -509,14 +542,14 @@ class Solver::Implementation
             update_r(R, r, d, iq);
 
             double z_dot_np = z.dot(np);
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Step direction z" << std::endl;
-            print_vector("z", z);
-            print_vector("r", r, iq + 1);
-            print_vector("u", u, iq + 1);
-            print_vector("d", d);
-            print_vector("A", A, iq + 1);
-#endif
+
+            QPPP_TRACE_MESSAGE("Step direction z" << std::endl);
+            QPPP_TRACE_VECTOR("z", z, z.size());
+            QPPP_TRACE_VECTOR("r", r, iq + 1);
+            QPPP_TRACE_VECTOR("u", u, iq + 1);
+            QPPP_TRACE_VECTOR("d", d, d.size());
+            QPPP_TRACE_VECTOR("A", A, iq + 1);
+
 
             /* Step 2b: compute step length */
             /* Compute t1: partial step length (maximum step in dual space without violating dual feasibility */
@@ -530,7 +563,7 @@ class Solver::Implementation
                     if (u[k] / r[k] < t1)
                     {
                         t1 = u[k] / r[k];
-                        l = A[k];
+                        l = A[k-num_ce];
                     }
                 }
             }
@@ -546,9 +579,10 @@ class Solver::Implementation
 
             /* the step is chosen as the minimum of t1 and t2 */
             t = std::min(t1, t2);
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Step sizes: " << t << " (t1 = " << t1 << ", t2 = " << t2 << ") ";
-#endif
+
+
+            QPPP_TRACE_MESSAGE("Step sizes: " << t << " (t1 = " << t1 << ", t2 = " << t2 << ") ");
+
 
             /* Step 2c: determine new S-pair and take step: */
 
@@ -557,7 +591,6 @@ class Solver::Implementation
             {
                 /* QPP is infeasible */
                 // FIXME: unbounded to raise
-                active_set_size = iq;
                 return (Status::FAILURE);
             }
             /* case (ii): step in dual space */
@@ -567,14 +600,14 @@ class Solver::Implementation
                 for (int k = 0; k < iq; ++k)
                     u[k] -= t * r[k];
                 u[iq] += t;
-                iai[l] = l;
-                delete_constraint(R, J, A, u, iq, l, num_var, num_ce);
-#ifdef QUADPROGPP_ENABLE_TRACING
-                std::cout << " in dual space: "
-                          << f_value << std::endl;
-                print_vector("x", x);
-                print_vector("A", A, iq + 1);
-#endif
+                ci_status[l] = ConstraintStatus::INACTIVE;
+                delete_constraint(u, iq, l, num_var, num_ce);
+                --iq;
+
+                QPPP_TRACE_MESSAGE(" in dual space: " << f_value << std::endl);
+                QPPP_TRACE_VECTOR("x", x, x.size());
+                QPPP_TRACE_VECTOR("A", A, iq + 1);
+
                 goto l2a;
             }
 
@@ -589,72 +622,70 @@ class Solver::Implementation
             for (int k = 0; k < iq; ++k)
                 u[k] -= t * r[k];
             u[iq] += t;
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << " in both spaces: "
-                      << f_value << std::endl;
-            print_vector("x", x);
-            print_vector("u", u, iq + 1);
-            print_vector("r", r, iq + 1);
-            print_vector("A", A, iq + 1);
-#endif
+
+            QPPP_TRACE_MESSAGE(" in both spaces: " << f_value << std::endl);
+            QPPP_TRACE_VECTOR("x", x, x.size());
+            QPPP_TRACE_VECTOR("u", u, iq + 1);
+            QPPP_TRACE_VECTOR("r", r, iq + 1);
+            QPPP_TRACE_VECTOR("A", A, iq + 1);
+
 
             if (std::fabs(t - t2) < epsilon)
             {
-#ifdef QUADPROGPP_ENABLE_TRACING
-                std::cout << "Full step has taken " << t << std::endl;
-                print_vector("x", x);
-#endif
+                QPPP_TRACE_MESSAGE("Full step has taken " << t << std::endl);
+                QPPP_TRACE_VECTOR("x", x, x.size());
+
                 /* full step has taken */
                 /* add constraint ip to the active set*/
-                if (!add_constraint(R, J, d, iq, R_norm, num_var))
+                if (add_constraint(d, R_norm, iq, num_var))
+                {
+                    ++iq;
+                    ci_status[ip] = ConstraintStatus::ACTIVE;
+                }
+                else
                 {
                     iaexcl[ip] = false;
-                    delete_constraint(R, J, A, u, iq, ip, num_var, num_ce);
-#ifdef QUADPROGPP_ENABLE_TRACING
-                    print_matrix("R", R);
-                    print_vector("A", A, iq);
-                    print_vector("iai", iai);
-#endif
-                    for (int i = 0; i < num_ci; ++i)
-                        iai[i] = i;
+                    delete_constraint(u, iq, ip, num_var, num_ce);
+
+                    QPPP_TRACE_MATRIX("R", R, R.rows(), R.cols());
+                    QPPP_TRACE_VECTOR("A", A, iq);
+                    QPPP_TRACE_VECTOR("ci_status", ci_status, ci_status.size());
+
+                    ci_status.assign(num_ci, ConstraintStatus::INACTIVE);
                     for (int i = num_ce; i < iq; ++i)
                     {
-                        A[i] = A_old[i];
+                        A[i-num_ce] = A_old[i-num_ce];
                         u[i] = u_old[i];
-                        iai[A[i]] = -1;
+                        ci_status[A[i]] = ConstraintStatus::ACTIVE;
                     }
                     x = x_old;
                     goto l2; /* go to step 2 */
                 }
-                else
-                    iai[ip] = -1;
-#ifdef QUADPROGPP_ENABLE_TRACING
-                print_matrix("R", R);
-                print_vector("A", A, iq);
-                print_vector("iai", iai);
-#endif
+
+                QPPP_TRACE_MATRIX("R", R, R.rows(), R.cols());
+                QPPP_TRACE_VECTOR("A", A, iq);
+                QPPP_TRACE_VECTOR("ci_status", ci_status, ci_status.size());
+
                 goto l1;
             }
 
             /* a patial step has taken */
-#ifdef QUADPROGPP_ENABLE_TRACING
-            std::cout << "Partial step has taken " << t << std::endl;
-            print_vector("x", x);
-#endif
+            QPPP_TRACE_MESSAGE("Partial step has taken " << t << std::endl);
+            QPPP_TRACE_VECTOR("x", x, x.size());
+
             /* drop constraint l */
-            iai[l] = l;
-            delete_constraint(R, J, A, u, iq, l, num_var, num_ce);
-#ifdef QUADPROGPP_ENABLE_TRACING
-            print_matrix("R", R);
-            print_vector("A", A, iq);
-#endif
+            ci_status[l] = ConstraintStatus::INACTIVE;
+            delete_constraint(u, iq, l, num_var, num_ce);
+            --iq;
+
+            QPPP_TRACE_MATRIX("R", R, R.rows(), R.cols());
+            QPPP_TRACE_VECTOR("A", A, iq);
 
             /* update s[ip] = CI * x + ci0 */
             multiply_and_add_i(ci_violations, CI, x, ci0, ip);
 
-#ifdef QUADPROGPP_ENABLE_TRACING
-            print_vector("s", ci_violations, num_ci);
-#endif
+            QPPP_TRACE_VECTOR("s", ci_violations, num_ci);
+
             goto l2a;
         }
 };
