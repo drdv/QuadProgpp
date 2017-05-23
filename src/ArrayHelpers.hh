@@ -99,9 +99,41 @@ class CholeskyDecomposition
         }
 
 
-        void invert_upper(QPPP_MATRIX(T)& A, QPPP_MATRIX(T)& J, QPPP_VECTOR(T)& z, QPPP_VECTOR(T)& d)
+        void invert_upper(  const QPPP_MATRIX(T)& A,
+                            QPPP_MATRIX(T)& J)
         {
             int n = A.rows();
+
+            // in-place inversion of upper triangular A
+            for (int i = n-1; i >=0; --i)
+            {
+                // zeros below the main diagonal
+                for(int k = n-1; k > i; --k)
+                {
+                    J(k, i) = 0.0;
+                }
+
+                // main diagonal
+                J(i,i) = 1.0 / A(i, i);
+
+                // elements above the main diagonal
+                for (int j = i-1; j >= 0; --j)
+                {
+                    double tmp = 0.0;
+                    for (int k = j+1; k <= i; ++k)
+                    {
+                        tmp -= A(k,j) * J(k,i);
+                    }
+                    J(j, i) = tmp / A(j,j);
+                }
+            }
+
+
+            // Original version -- requires extra temporary vectors and should
+            // be slower
+            /*
+            int n = A.rows();
+            d.setZero(n);
 
             for (int i = 0; i < n; i++)
             {
@@ -113,6 +145,7 @@ class CholeskyDecomposition
                 }
                 d[i] = 0.0;
             }
+            */
         }
 
 

@@ -103,6 +103,7 @@ inline double distance(double a, double b)
 class Solver::Implementation
 {
     public:
+        int     active_set_size;  /* size of the active set A (containing the indices of the active constraints) */
         int     iter;
         double  f_value;
 
@@ -357,7 +358,6 @@ class Solver::Implementation
             double trace_G, trace_J;
             A.resize(num_ce + num_ci);
 
-            int q = 0;  /* size of the active set A (containing the indices of the active constraints) */
 #ifdef QUADPROGPP_ENABLE_TRACING
             std::cout << std::endl << "Starting solve_quadprog" << std::endl;
             print_matrix("G", G);
@@ -383,18 +383,11 @@ class Solver::Implementation
 #ifdef QUADPROGPP_ENABLE_TRACING
             print_matrix("G", G);
 #endif
-            /* initialize the matrix R */
             R.resize(num_var, num_var);
-            for (int i = 0; i < num_var; ++i)
-            {
-                d[i] = 0.0;
-                for (int j = 0; j < num_var; ++j)
-                    R(i, j) = 0.0;
-            }
             double R_norm = 1.0; /* this variable will hold the norm of the matrix R */
 
             /* compute the inverse of the factorized matrix G^-1, this is the initial value for H */
-            chol.invert_upper(G,J,z,d);
+            chol.invert_upper(G,J);
             trace_J = 0.0;
             for (int i = 0; i < num_var; ++i)
             {
@@ -520,7 +513,7 @@ class Solver::Implementation
             if (std::fabs(psi) <= num_ci * epsilon * trace_G * trace_J * 100.0)
             {
                 /* numerically there are not infeasibilities anymore */
-                q = iq;
+                active_set_size = iq;
                 return (Status::OK);
             }
 
@@ -544,7 +537,7 @@ class Solver::Implementation
             }
             if (ss >= 0.0)
             {
-                q = iq;
+                active_set_size = iq;
                 return (Status::OK);
             }
 
@@ -579,10 +572,10 @@ class Solver::Implementation
 #endif
 
             /* Step 2b: compute step length */
-            int l = 0;
             /* Compute t1: partial step length (maximum step in dual space without violating dual feasibility */
             t1 = inf; /* +inf */
             /* find the index l s.t. it reaches the minimum of u+[x] / r */
+            int l = 0;
             for (int k = num_ce; k < iq; ++k)
             {
                 if (r[k] > 0.0)
@@ -595,7 +588,7 @@ class Solver::Implementation
                 }
             }
             /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
-            if (std::fabs(z.dot(z))  > epsilon) // i.e. z != 0
+            if (z.dot(z) > epsilon) // i.e. z != 0
             {
                 t2 = -ci_violations[ip] / z_dot_np;
                 if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
@@ -617,7 +610,7 @@ class Solver::Implementation
             {
                 /* QPP is infeasible */
                 // FIXME: unbounded to raise
-                q = iq;
+                active_set_size = iq;
                 return (Status::FAILURE);
             }
             /* case (ii): step in dual space */

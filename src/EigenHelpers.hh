@@ -58,8 +58,10 @@ class CholeskyDecomposition
         }
 
 
-        template<class t_Derived>
-        void invert_upper(Eigen::PlainObjectBase<t_Derived>& A, QPPP_MATRIX(T)& J, QPPP_VECTOR(T)& z, QPPP_VECTOR(T)& d)
+        template<   class t_Derived_J,
+                    class t_Derived_A>
+        void invert_upper(  const Eigen::PlainObjectBase<t_Derived_A> & A,
+                            Eigen::PlainObjectBase<t_Derived_J> & J)
         {
             // this is slightly slower
             /*
