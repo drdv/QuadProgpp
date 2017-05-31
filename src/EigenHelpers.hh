@@ -60,6 +60,15 @@ class CholeskyDecomposition
         }
 
 
+        template<class t_Derived>
+        void solve_negative(Eigen::PlainObjectBase<t_Derived>& A,
+                            QPPP_VECTOR(T)& x,
+                            const QPPP_VECTOR(T)& b)
+        {
+            x = -lltOfA.solve(b);
+        }
+
+
         template<   class t_Derived_J,
                     class t_Derived_A>
         void invert_upper(  const Eigen::PlainObjectBase<t_Derived_A> & A,

@@ -160,6 +160,15 @@ class CholeskyDecomposition
             backward_elimination(A, x, y);
         }
 
+        void solve_negative(QPPP_MATRIX(T)& A, QPPP_VECTOR(T)& x, const QPPP_VECTOR(T)& b)
+        {
+            solve(A, x, b);
+            for (int i = 0; i < x.size(); ++i)
+            {
+                x[i] = -x[i];
+            }
+        }
+
 
     private:
         inline void forward_elimination(QPPP_MATRIX(T)& A, QPPP_VECTOR(T)& y, const QPPP_VECTOR(T)& b)

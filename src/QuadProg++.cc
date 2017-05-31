@@ -371,11 +371,9 @@ class Solver::Implementation
             /*
              * Find the unconstrained minimizer of the quadratic form 0.5 * x G x + g0 x
              * this is a feasible point in the dual space
-             * x = G^-1 * g0
+             * x = - G^-1 * g0
              */
-            chol.solve(G, primal, g0);
-            for (int i = 0; i < num_var; ++i)
-                primal[i] = -primal[i];
+            chol.solve_negative(G, primal, g0);
             /* and compute the current solution value */
             f_value = 0.5 * g0.dot(primal);
 
