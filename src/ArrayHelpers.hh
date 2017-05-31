@@ -244,7 +244,7 @@ inline void compute_d(QPPP_VECTOR(T)& d, const QPPP_MATRIX(T)& J, const QPPP_VEC
 
 
 template<typename T>
-inline void update_z(QPPP_VECTOR(T)& z, const QPPP_MATRIX(T)& J, const QPPP_VECTOR(T)& d, const int iq)
+inline void compute_primal_step_direction(QPPP_VECTOR(T)& z, const QPPP_MATRIX(T)& J, const QPPP_VECTOR(T)& d, const int iq)
 {
     register int i, j, n = z.size();
 
@@ -259,7 +259,7 @@ inline void update_z(QPPP_VECTOR(T)& z, const QPPP_MATRIX(T)& J, const QPPP_VECT
 
 
 template<typename T>
-inline void update_r(const QPPP_MATRIX(T)& R, QPPP_VECTOR(T)& r, const QPPP_VECTOR(T)& d, const int iq)
+inline void compute_dual_step_direction(const QPPP_MATRIX(T)& R, QPPP_VECTOR(T)& r, const QPPP_VECTOR(T)& d, const int iq)
 {
     register int i, j, n = d.size();
     register double sum;

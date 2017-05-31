@@ -118,14 +118,14 @@ class Solver::Implementation
 
         QPPP_MATRIX(double) R;
         QPPP_MATRIX(double) J;
-        QPPP_VECTOR(double) ci_violations;
-        QPPP_VECTOR(double) z;
-        QPPP_VECTOR(double) r;
+        QPPP_VECTOR(double) ci_violations;      // s
+        QPPP_VECTOR(double) primal_step_direction;   // z
         QPPP_VECTOR(double) d;
         QPPP_VECTOR(double) np;
-        QPPP_VECTOR(double) u;
-        QPPP_VECTOR(double) x_old;
-        QPPP_VECTOR(double) u_old;
+        QPPP_VECTOR(double) dual;                 // u | Lagrange multipliers
+        QPPP_VECTOR(double) dual_step_direction;  // r
+        QPPP_VECTOR(double) primal_old;
+        QPPP_VECTOR(double) dual_old;             // u_old
         QPPP_VECTOR(int) A;
         QPPP_VECTOR(int) A_old;
         QPPP_VECTOR(bool) iaexcl;
@@ -206,7 +206,7 @@ class Solver::Implementation
         }
 
 
-        void delete_constraint( QPPP_VECTOR(double)& u,
+        void delete_constraint( QPPP_VECTOR(double)& dual,
                                 int iq,
                                 int l,
                                 const int num_var,
@@ -230,13 +230,13 @@ class Solver::Implementation
             for (i = qq; i < iq - 1; i++)
             {
                 A[i-num_ce] = A[i + 1 - num_ce];
-                u[i] = u[i + 1];
+                dual[i] = dual[i + 1];
                 for (j = 0; j < num_var; j++)
                     R(j, i) = R(j, i + 1);
             }
 
             A[iq - 1 - num_ce] = A[iq - num_ce];
-            u[iq - 1] = u[iq];
+            dual[iq - 1] = dual[iq];
             /* constraint has been fully removed */
 
             QPPP_TRACE_MESSAGE('/' << iq << std::endl);
@@ -297,9 +297,9 @@ class Solver::Implementation
 
         // The Solving function, implementing the Goldfarb-Idnani method
         Status::Value solve(QPPP_MATRIX(double)& G, QPPP_VECTOR(double)& g0,
-                     const QPPP_MATRIX(double)& CE, const QPPP_VECTOR(double)& ce0,
-                     const QPPP_MATRIX(double)& CI, const QPPP_VECTOR(double)& ci0,
-                     QPPP_VECTOR(double)& x)
+                            const QPPP_MATRIX(double)& CE, const QPPP_VECTOR(double)& ce0,
+                            const QPPP_MATRIX(double)& CI, const QPPP_VECTOR(double)& ci0,
+                            QPPP_VECTOR(double)& primal)
         {
             int num_var = G.cols();
             int num_ce = CE.cols();
@@ -335,7 +335,7 @@ class Solver::Implementation
                 msg << "The vector ci0 is incompatible (incorrect dimension " << ci0.size() << ", expecting " << num_ci << ")";
                 throw std::logic_error(msg.str());
             }
-            x.resize(num_var);
+            primal.resize(num_var);
 
 
             QPPP_TRACE_MESSAGE(std::endl << "Starting solve_quadprog" << std::endl);
@@ -373,23 +373,25 @@ class Solver::Implementation
              * this is a feasible point in the dual space
              * x = G^-1 * g0
              */
-            chol.solve(G, x, g0);
+            chol.solve(G, primal, g0);
             for (int i = 0; i < num_var; ++i)
-                x[i] = -x[i];
+                primal[i] = -primal[i];
             /* and compute the current solution value */
-            f_value = 0.5 * g0.dot(x);
+            f_value = 0.5 * g0.dot(primal);
 
 
             QPPP_TRACE_MESSAGE("Unconstrained solution: " << f_value << std::endl);
-            QPPP_TRACE_VECTOR("x", x, x.size());
+            QPPP_TRACE_VECTOR("primal (x)", primal, num_var);
 
 
             /* Add equality constraints to the working set A */
-            z.resize(num_var);
-            r.resize(num_ce + num_ci);
+            primal_step_direction.resize(num_var);
             d.resize(num_var);
             np.resize(num_var);
-            u.resize(num_ce + num_ci);
+
+            dual.resize(num_ce + num_ci);
+            dual_step_direction.resize(num_ce + num_ci);
+
             R.resize(num_var, num_var);
             double R_norm = 1.0; /* this variable will hold the norm of the matrix R */
 
@@ -398,13 +400,13 @@ class Solver::Implementation
                 for (int j = 0; j < num_var; ++j)
                     np[j] = CE(j, i);
                 compute_d(d, J, np);
-                update_z(z, J, d, i);
-                update_r(R, r, d, i);
+                compute_primal_step_direction(primal_step_direction, J, d, i);
+                compute_dual_step_direction(R, dual_step_direction, d, i);
 
 
                 QPPP_TRACE_MATRIX("R", R, num_var, i);
-                QPPP_TRACE_VECTOR("z", z, num_var);
-                QPPP_TRACE_VECTOR("r", r, i);
+                QPPP_TRACE_VECTOR("primal_step_direction (z)", primal_step_direction, num_var);
+                QPPP_TRACE_VECTOR("dual_step_direction (r)", dual_step_direction, i);
                 QPPP_TRACE_VECTOR("d", d, num_var);
 
 
@@ -412,25 +414,28 @@ class Solver::Implementation
                  * compute full step length t2: i.e., the minimum step in
                  * primal space s.t. the contraint becomes feasible
                  */
-                double t2 = 0.0;
-                if (z.dot(z) > epsilon) // i.e. z != 0
+                if (primal_step_direction.dot(primal_step_direction) > epsilon) // i.e. primal_step_direction != 0
                 {
-                    double z_dot_np = z.dot(np);
+                    double primal_step_direction_dot_np = primal_step_direction.dot(np);
 
-                    t2 = (-np.dot(x) - ce0[i]) / z_dot_np;
+                    double t2 = (-np.dot(primal) - ce0[i]) / primal_step_direction_dot_np;
 
-                    /* set x = x + t2 * z */
+                    /* set x = x + t2 * primal_step_direction */
                     for (int k = 0; k < num_var; ++k)
-                        x[k] += t2 * z[k];
+                        primal[k] += t2 * primal_step_direction[k];
 
                     /* set u = u+ */
                     for (int k = 0; k < i; ++k)
-                        u[k] -= t2 * r[k];
+                        dual[k] -= t2 * dual_step_direction[k];
+                    dual[i] = t2;
 
                     /* compute the new solution value */
-                    f_value += 0.5 * t2 * t2 * z_dot_np;
+                    f_value += 0.5 * t2 * t2 * primal_step_direction_dot_np;
                 }
-                u[i] = t2;
+                else
+                {
+                    dual[i] = 0.0;
+                }
 
                 if (!add_constraint(d, R_norm, i, num_var))
                 {
@@ -446,8 +451,8 @@ class Solver::Implementation
 
             A.resize(num_ci);
             A_old.resize(num_ci);
-            x_old.resize(num_var);
-            u_old.resize(num_ci + num_ce);
+            primal_old.resize(num_var);
+            dual_old.resize(num_ci + num_ce);
 
             ci_violations.resize(num_ci);
             iaexcl.resize(num_ci);
@@ -462,7 +467,7 @@ class Solver::Implementation
 
         l1:
             ++iter;
-            QPPP_TRACE_VECTOR("x", x, x.size());
+            QPPP_TRACE_VECTOR("primal (x)", primal, num_var);
 
             /* step 1: choose a violated constraint */
             for (int i = 0; i < iq-num_ce; ++i)
@@ -476,7 +481,7 @@ class Solver::Implementation
 
 
             // ci_violations = CI^T*x + ci0
-            multiply_and_add(ci_violations,CI,x,ci0);
+            multiply_and_add(ci_violations, CI, primal, ci0);
 
 
             QPPP_TRACE_VECTOR("s", ci_violations, num_ci);
@@ -498,14 +503,14 @@ class Solver::Implementation
             /* save old values for u and A */
             for (int i = 0; i < iq; ++i)
             {
-                u_old[i] = u[i];
+                dual_old[i] = dual[i];
             }
             for (int i = 0; i < iq-num_ce; ++i)
             {
                 A_old[i] = A[i];
             }
             /* and for x */
-            x_old = x;
+            primal_old = primal;
 
         l2: /* Step 2: check for feasibility and determine a new S-pair */
             for (int i = 0; i < num_ci; ++i)
@@ -525,7 +530,7 @@ class Solver::Implementation
             for (int i = 0; i < num_var; ++i)
                 np[i] = CI(i, ip);
             /* set u = [u 0]^T */
-            u[iq] = 0.0;
+            dual[iq] = 0.0;
             /* add ip to the active set A */
             A[iq-num_ce] = ip;
 
@@ -537,16 +542,15 @@ class Solver::Implementation
         l2a:/* Step 2a: determine step direction */
             /* compute z = H np: the step direction in the primal space (through J, see the paper) */
             compute_d(d, J, np);
-            update_z(z, J, d, iq);
+            compute_primal_step_direction(primal_step_direction, J, d, iq);
             /* compute N* np (if q > 0): the negative of the step direction in the dual space */
-            update_r(R, r, d, iq);
+            compute_dual_step_direction(R, dual_step_direction, d, iq);
 
-            double z_dot_np = z.dot(np);
+            double primal_step_direction_dot_np = primal_step_direction.dot(np);
 
-            QPPP_TRACE_MESSAGE("Step direction z" << std::endl);
-            QPPP_TRACE_VECTOR("z", z, z.size());
-            QPPP_TRACE_VECTOR("r", r, iq + 1);
-            QPPP_TRACE_VECTOR("u", u, iq + 1);
+            QPPP_TRACE_VECTOR("primal_step_direction (z)", primal_step_direction, num_var);
+            QPPP_TRACE_VECTOR("dual_step_direction (r)", dual_step_direction, iq + 1);
+            QPPP_TRACE_VECTOR("dual (u)", dual, iq + 1);
             QPPP_TRACE_VECTOR("d", d, d.size());
             QPPP_TRACE_VECTOR("A", A, iq + 1);
 
@@ -558,19 +562,19 @@ class Solver::Implementation
             int l = 0;
             for (int k = num_ce; k < iq; ++k)
             {
-                if (r[k] > 0.0)
+                if (dual_step_direction[k] > 0.0)
                 {
-                    if (u[k] / r[k] < t1)
+                    if (dual[k] / dual_step_direction[k] < t1)
                     {
-                        t1 = u[k] / r[k];
+                        t1 = dual[k] / dual_step_direction[k];
                         l = A[k-num_ce];
                     }
                 }
             }
             /* Compute t2: full step length (minimum step in primal space such that the constraint ip becomes feasible */
-            if (z.dot(z) > epsilon) // i.e. z != 0
+            if (primal_step_direction.dot(primal_step_direction) > epsilon) // i.e. z != 0
             {
-                t2 = -ci_violations[ip] / z_dot_np;
+                t2 = -ci_violations[ip] / primal_step_direction_dot_np;
                 if (t2 < 0) // patch suggested by Takano Akio for handling numerical inconsistencies
                     t2 = inf;
             }
@@ -598,14 +602,14 @@ class Solver::Implementation
             {
                 /* set u = u +  t * [-r 1] and drop constraint l from the active set A */
                 for (int k = 0; k < iq; ++k)
-                    u[k] -= t * r[k];
-                u[iq] += t;
+                    dual[k] -= t * dual_step_direction[k];
+                dual[iq] += t;
                 ci_status[l] = ConstraintStatus::INACTIVE;
-                delete_constraint(u, iq, l, num_var, num_ce);
+                delete_constraint(dual, iq, l, num_var, num_ce);
                 --iq;
 
                 QPPP_TRACE_MESSAGE(" in dual space: " << f_value << std::endl);
-                QPPP_TRACE_VECTOR("x", x, x.size());
+                QPPP_TRACE_VECTOR("primal (x)", primal, num_var);
                 QPPP_TRACE_VECTOR("A", A, iq + 1);
 
                 goto l2a;
@@ -613,27 +617,27 @@ class Solver::Implementation
 
             /* case (iii): step in primal and dual space */
 
-            /* set x = x + t * z */
+            /* set x = x + t * primal_step_direction */
             for (int k = 0; k < num_var; ++k)
-                x[k] += t * z[k];
+                primal[k] += t * primal_step_direction[k];
             /* update the solution value */
-            f_value += t * z_dot_np * (0.5 * t + u[iq]);
+            f_value += t * primal_step_direction_dot_np * (0.5 * t + dual[iq]);
             /* u = u + t * [-r 1] */
             for (int k = 0; k < iq; ++k)
-                u[k] -= t * r[k];
-            u[iq] += t;
+                dual[k] -= t * dual_step_direction[k];
+            dual[iq] += t;
 
             QPPP_TRACE_MESSAGE(" in both spaces: " << f_value << std::endl);
-            QPPP_TRACE_VECTOR("x", x, x.size());
-            QPPP_TRACE_VECTOR("u", u, iq + 1);
-            QPPP_TRACE_VECTOR("r", r, iq + 1);
+            QPPP_TRACE_VECTOR("primal (x)", primal, num_var);
+            QPPP_TRACE_VECTOR("dual (u)", dual, iq + 1);
+            QPPP_TRACE_VECTOR("dual_step_direction (r)", dual_step_direction, iq + 1);
             QPPP_TRACE_VECTOR("A", A, iq + 1);
 
 
             if (std::fabs(t - t2) < epsilon)
             {
                 QPPP_TRACE_MESSAGE("Full step has taken " << t << std::endl);
-                QPPP_TRACE_VECTOR("x", x, x.size());
+                QPPP_TRACE_VECTOR("primal (x)", primal, num_var);
 
                 /* full step has taken */
                 /* add constraint ip to the active set*/
@@ -645,7 +649,7 @@ class Solver::Implementation
                 else
                 {
                     iaexcl[ip] = false;
-                    delete_constraint(u, iq, ip, num_var, num_ce);
+                    delete_constraint(dual, iq, ip, num_var, num_ce);
 
                     QPPP_TRACE_MATRIX("R", R, R.rows(), R.cols());
                     QPPP_TRACE_VECTOR("A", A, iq);
@@ -655,10 +659,10 @@ class Solver::Implementation
                     for (int i = num_ce; i < iq; ++i)
                     {
                         A[i-num_ce] = A_old[i-num_ce];
-                        u[i] = u_old[i];
+                        dual[i] = dual_old[i];
                         ci_status[A[i]] = ConstraintStatus::ACTIVE;
                     }
-                    x = x_old;
+                    primal = primal_old;
                     goto l2; /* go to step 2 */
                 }
 
@@ -671,18 +675,18 @@ class Solver::Implementation
 
             /* a patial step has taken */
             QPPP_TRACE_MESSAGE("Partial step has taken " << t << std::endl);
-            QPPP_TRACE_VECTOR("x", x, x.size());
+            QPPP_TRACE_VECTOR("primal (x)", primal, num_var);
 
             /* drop constraint l */
             ci_status[l] = ConstraintStatus::INACTIVE;
-            delete_constraint(u, iq, l, num_var, num_ce);
+            delete_constraint(dual, iq, l, num_var, num_ce);
             --iq;
 
             QPPP_TRACE_MATRIX("R", R, R.rows(), R.cols());
             QPPP_TRACE_VECTOR("A", A, iq);
 
             /* update s[ip] = CI * x + ci0 */
-            multiply_and_add_i(ci_violations, CI, x, ci0, ip);
+            multiply_and_add_i(ci_violations, CI, primal, ci0, ip);
 
             QPPP_TRACE_VECTOR("s", ci_violations, num_ci);
 

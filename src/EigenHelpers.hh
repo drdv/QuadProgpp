@@ -101,7 +101,7 @@ class CholeskyDecomposition
 //-----------------------------------------------------------------------
 // Utility functions for updating some data needed by the solution method
 //-----------------------------------------------------------------------
-#define compute_d(d,J,np)   d.noalias() = J.transpose() * np;
-#define update_z(z,J,d,iq)  z.noalias() = J.rightCols(num_var-iq) * d.tail(num_var-iq);
-#define update_r(R,r,d,iq)  r.head(iq) = R.topLeftCorner(iq,iq).triangularView<Eigen::Upper>().solve(d.head(iq));
+#define compute_d(d,J,np)                       d.noalias() = J.transpose() * np;
+#define compute_primal_step_direction(z,J,d,iq) z.noalias() = J.rightCols(num_var-iq) * d.tail(num_var-iq);
+#define compute_dual_step_direction(R,r,d,iq)   r.head(iq) = R.topLeftCorner(iq,iq).triangularView<Eigen::Upper>().solve(d.head(iq));
 } // namesace QuadProgpp
