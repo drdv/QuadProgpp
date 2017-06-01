@@ -1,4 +1,15 @@
+tolerance = 1e-08;
+
+function x = check_result(test_id, condition)
+    if (condition)
+        printf('Test %d OK\n', test_id);
+    else
+        printf('Test %d FAIL\n', test_id);
+    end
+end
+
 TEST_ID = 1;
+
 
 %-------------------------------------------------
 % [x, info] = quadprogpp (H)
@@ -7,11 +18,7 @@ N = 20;
 [x, info] = quadprogpp(eye(N));
 xref = zeros(N,1);
 
-if ((abs(sum(x-xref)) < 1e-08) && (info.status == 0))
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, (abs(sum(x-xref)) < tolerance) && (info.status == 0))
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
 
@@ -23,11 +30,7 @@ N = 20;
 [x, info] = quadprogpp(eye(N), ones(N, 1));
 xref = -1*ones(N,1);
 
-if ((abs(sum(x-xref)) < 1e-08) && (info.status == 0))
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, (abs(sum(x-xref)) < tolerance) && (info.status == 0))
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
 
@@ -39,11 +42,7 @@ N = 20;
 [x, info] = quadprogpp(eye(N), ones(N, 1), [eye(4), zeros(4, N-4)], [1; 2; 3; 4]);
 xref = [1   2   3   4  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1]';
 
-if ((abs(sum(x-xref)) < 1e-08) && (info.status == 0))
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, (abs(sum(x-xref)) < tolerance) && (info.status == 0))
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
 
@@ -59,11 +58,7 @@ N = 20;
                         -100*ones(N,1),
                         zeros(N,1));
 
-if (info.status > 0)
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, info.status > 0)
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
 
@@ -81,11 +76,7 @@ N = 20;
 xref = [1.0   2.0   3.0   4.0  -0.5  -0.5 -0.5  -0.5  -0.5  -0.5  -0.5  -0.5 -0.5  -0.5  -0.5  -0.5  -0.5  -0.5 -0.5  -0.5]';
 
 
-if ((abs(sum(x-xref)) < 1e-08) && (info.status == 0))
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, (abs(sum(x-xref)) < tolerance) && (info.status == 0))
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
 
@@ -105,11 +96,7 @@ N = 20;
                         [1.5]);
 xref = [1.0   2.0   3.0   4.0  -0.71875  -0.71875 -0.71875  -0.71875  -0.71875  -0.71875  -0.71875  -0.71875 -0.71875  -0.71875  -0.71875  -0.71875  -0.71875  -0.71875 -0.71875  -0.71875]';
 
-if ((abs(sum(x-xref)) < 1e-08) && (info.status == 0))
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, (abs(sum(x-xref)) < tolerance) && (info.status == 0))
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
 
@@ -120,10 +107,6 @@ TEST_ID = TEST_ID + 1;
 N = 20;
 [x, info] = quadprogpp(eye(N), ones(N, 1), [[eye(4), zeros(4, N-4)]; [1, zeros(1, N-1)]], [1; 2; 3; 4; 1]);
 
-if (info.status > 0)
-    printf('Test %d OK\n', TEST_ID);
-else
-    printf('Test %d FAIL\n', TEST_ID);
-end
+check_result(TEST_ID, info.status > 0)
 TEST_ID = TEST_ID + 1;
 %-------------------------------------------------
