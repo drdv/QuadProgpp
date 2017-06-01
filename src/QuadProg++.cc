@@ -399,7 +399,7 @@ class Solver::Implementation
                     np[j] = CE(j, i);
                 compute_d(d, J, np);
                 compute_primal_step_direction(primal_step_direction, J, d, i);
-                compute_dual_step_direction(R, dual_step_direction, d, i);
+                compute_dual_step_direction(dual_step_direction, R, d, i);
 
 
                 QPPP_TRACE_MATRIX("R", R, num_var, i);
@@ -542,7 +542,7 @@ class Solver::Implementation
             compute_d(d, J, np);
             compute_primal_step_direction(primal_step_direction, J, d, iq);
             /* compute N* np (if q > 0): the negative of the step direction in the dual space */
-            compute_dual_step_direction(R, dual_step_direction, d, iq);
+            compute_dual_step_direction(dual_step_direction, R, d, iq);
 
             double primal_step_direction_dot_np = primal_step_direction.dot(np);
 

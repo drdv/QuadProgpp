@@ -268,7 +268,7 @@ inline void compute_primal_step_direction(QPPP_VECTOR(T)& z, const QPPP_MATRIX(T
 
 
 template<typename T>
-inline void compute_dual_step_direction(const QPPP_MATRIX(T)& R, QPPP_VECTOR(T)& r, const QPPP_VECTOR(T)& d, const int iq)
+inline void compute_dual_step_direction(QPPP_VECTOR(T)& r, const QPPP_MATRIX(T)& R, const QPPP_VECTOR(T)& d, const int iq)
 {
     register int i, j, n = d.size();
     register double sum;

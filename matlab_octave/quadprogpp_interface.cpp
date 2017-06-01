@@ -14,6 +14,7 @@ enum qpStatus
 {
     QP_OK = 0,
     QP_INFEASIBLE = 1,
+    QP_FAILURE = 2
 };
 
 
@@ -59,23 +60,30 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
     qpStatus qp_status;
     QuadProgpp::Solver  quadprog;
 
-#ifdef QUADPROGPP_ENABLE_EIGEN
-    QuadProgpp::Status::Value return_value = quadprog.solve(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
-#else
-    QuadProgpp::Status::Value return_value = quadprog.solve(eH, eg, eA, eb, eAin, ebin, ex);
-#endif
-
-    if (return_value == QuadProgpp::Status::OK)
+    try
     {
-        qp_status = QP_OK;
-        for(std::size_t i = 0; i < num_var; ++i)
+#ifdef QUADPROGPP_ENABLE_EIGEN
+        QuadProgpp::Status::Value return_value = quadprog.solve(eH, eg, eA.transpose(), eb, eAin.transpose(), ebin, ex);
+#else
+        QuadProgpp::Status::Value return_value = quadprog.solve(eH, eg, eA, eb, eAin, ebin, ex);
+#endif
+        if (return_value == QuadProgpp::Status::OK)
         {
-            ((double*) mxGetPr(x))[i] = ex[i];
+            qp_status = QP_OK;
+            for(std::size_t i = 0; i < num_var; ++i)
+            {
+                ((double*) mxGetPr(x))[i] = ex[i];
+            }
+        }
+        else
+        {
+            qp_status = QP_INFEASIBLE;
         }
     }
-    else
+    catch(std::exception &e)
     {
-        qp_status = QP_INFEASIBLE;
+        std::cout << e.what() << std::endl;
+        qp_status = QP_FAILURE;
     }
 
 
@@ -85,10 +93,9 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
 
 
     // info
-    int num_info_fields = 2;
+    int num_info_fields = 1;
     const char *info_field_names[] = {
-        "status",
-        "obj"
+        "status"
     };
 
     output[1] = mxCreateStructMatrix(1, 1, num_info_fields, info_field_names);
@@ -96,10 +103,6 @@ void mexFunction( int num_output, mxArray *output[], int num_input, const mxArra
     mxArray *info_status = mxCreateNumericMatrix(1, 1, mxINT32_CLASS, mxREAL);
     ((INT32_T *) mxGetData (info_status))[0] = static_cast <int> (qp_status);
     mxSetField (output[1], 0, "status", info_status);
-
-    mxArray *info_obj = mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL);
-    ((double *) mxGetData (info_obj))[0] = qp_status;
-    mxSetField (output[1], 0, "obj", info_obj);
 
     return;
 }

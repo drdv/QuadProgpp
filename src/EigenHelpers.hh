@@ -112,5 +112,5 @@ class CholeskyDecomposition
 //-----------------------------------------------------------------------
 #define compute_d(d,J,np)                       d.noalias() = J.transpose() * np;
 #define compute_primal_step_direction(z,J,d,iq) z.noalias() = J.rightCols(num_var-iq) * d.tail(num_var-iq);
-#define compute_dual_step_direction(R,r,d,iq)   r.head(iq) = R.topLeftCorner(iq,iq).triangularView<Eigen::Upper>().solve(d.head(iq));
+#define compute_dual_step_direction(r,R,d,iq)   r.head(iq) = R.topLeftCorner(iq,iq).triangularView<Eigen::Upper>().solve(d.head(iq));
 } // namesace QuadProgpp
