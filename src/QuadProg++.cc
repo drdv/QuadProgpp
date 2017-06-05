@@ -75,23 +75,185 @@ void print_vector(const char* name, const std::vector<T> & v, int n = -1)
 //-----------------------------------------------------------------------
 // Utility function for computing the euclidean distance between two numbers
 //-----------------------------------------------------------------------
-inline double distance(double a, double b)
+
+/**
+ * @brief
+ *
+ * Represents Givens reflection
+ *
+ *  [ cos,  sin ]
+ *  [           ]
+ *  [ sin, -cos ]
+ *
+ * for a given vector (a, b) is defined with
+ *
+ *  [ cos,  sin ]       [ a ]       [ d ]
+ *  [           ]   *   [   ]   =   [   ]
+ *  [ sin, -cos ]       [ b ]       [ 0 ]
+ *
+ *  sin^2 + cos^2 = 1
+ *
+ * Special cases:
+ *  COPY        b == 0: cos = 1, sin = 0
+ *  EXCHANGE    (b != 0) && (a == 0): cos = 0, sin = 1
+ */
+class GivensTransform
 {
-    register double a1, b1, t;
-    a1 = std::fabs(a);
-    b1 = std::fabs(b);
-    if (a1 > b1)
-    {
-        t = (b1 / a1);
-        return a1 * std::sqrt(1.0 + t * t);
-    }
-    else if (b1 > a1)
-    {
-        t = (a1 / b1);
-        return b1 * std::sqrt(1.0 + t * t);
-    }
-    return a1 * std::sqrt(2.0);
-}
+    public:
+        enum Type
+        {
+            NONTRIVIAL = 0,
+            COPY = 1,
+            EXCHANGE = 2
+        };
+
+    public:
+        Type computeAndApply(double & a, double & b, const double eps)
+        {
+            double abs_b = std::fabs(b);
+
+            if (abs_b > eps)
+            {
+                double abs_a = std::fabs(a);
+
+                if (abs_a > eps)
+                {
+                    double t;
+                    if (abs_a > abs_b)
+                    {
+                        t = (abs_b / abs_a);
+                        t = abs_a * std::sqrt(1.0 + t * t);
+                    }
+                    else
+                    {
+                        if (abs_a < abs_b)
+                        {
+                            t = (abs_a / abs_b);
+                            t = abs_b * std::sqrt(1.0 + t * t);
+                        }
+                        else
+                        {
+                            t = abs_a * std::sqrt(2.0);
+                        }
+                    }
+                    t = copysign(t, a);
+
+                    cos = a / t;
+                    sin = b / t;
+                    xny = sin / (1.0 + cos);
+
+                    a = t;
+                    b = 0.0;
+
+                    type = NONTRIVIAL;
+                }
+                else
+                {
+                    //cos = 0.0;
+                    //sin = 1.0;
+                    //xny = 1.0;
+                    exchange(a,b);
+                    type = EXCHANGE;
+                }
+            }
+            else
+            {
+                //cos = 1.0;
+                //sin = 0.0;
+                //xny = 0;
+                type = COPY;
+            }
+
+            return (type);
+        }
+
+
+        void apply(double & a, double & b) const
+        {
+            switch (type)
+            {
+                case COPY:
+                    return;
+                case EXCHANGE:
+                    exchange(a,b);
+                    return;
+                case NONTRIVIAL:
+                    applyNonTrivial(a,b);
+                    return;
+            }
+        }
+
+        void applyColumnWise(   QPPP_MATRIX(double) &M,
+                                const int start,
+                                const int end,
+                                const int column_1,
+                                const int column_2) const
+        {
+            switch (type)
+            {
+                case COPY:
+                    return;
+                case EXCHANGE:
+                    for (int k = start; k < end; k++)
+                    {
+                        exchange(M(k, column_1), M(k, column_2));
+                    }
+                    return;
+                case NONTRIVIAL:
+                    for (int k = start; k < end; k++)
+                    {
+                        applyNonTrivial(M(k, column_1), M(k, column_2));
+                    }
+                    return;
+            }
+        }
+
+
+        void applyRowWise(  QPPP_MATRIX(double) &M,
+                            const int start,
+                            const int end,
+                            const int row_1,
+                            const int row_2) const
+        {
+            switch (type)
+            {
+                case COPY:
+                    return;
+                case EXCHANGE:
+                    for (int k = start; k < end; k++)
+                    {
+                        exchange(M(row_1, k), M(row_2, k));
+                    }
+                    return;
+                case NONTRIVIAL:
+                    for (int k = start; k < end; k++)
+                    {
+                        applyNonTrivial(M(row_1, k), M(row_2, k));
+                    }
+                    return;
+            }
+        }
+
+    private:
+        Type    type;
+        double  cos;
+        double  sin;
+        double  xny;
+
+    private:
+        inline void exchange(double & a, double & b) const
+        {
+            std::swap(a,b);
+        }
+
+        inline void applyNonTrivial(double & a, double & b) const
+        {
+            double t1 = a;
+            double t2 = b;
+            a = t1 * cos + t2 * sin;
+            b = xny * (t1 + a) - t2;
+        }
+};
 
 
 class ConstraintStatus
@@ -143,56 +305,19 @@ class Solver::Implementation
         {
             QPPP_TRACE_MESSAGE("Add constraint " << iq << '/');
 
-            register int i, j, k;
-            double cc, ss, h, t1, t2, xny;
-
             /* we have to find the Givens rotation which will reduce the element
               d[j] to zero.
               if it is already zero we don't have to do anything, except of
               decreasing j */
-            for (j = num_var - 1; j >= iq + 1; j--)
+            GivensTransform givens;
+            for (int j = num_var - 1; j >= iq + 1; j--)
             {
-                /* The Givens rotation is done with the matrix (cc cs, cs -cc).
-                If cc is one, then element (j) of d is zero compared with element
-                (j - 1). Hence we don't have to do anything.
-                If cc is zero, then we just have to switch column (j) and column (j - 1)
-                of J. Since we only switch columns in J, we have to be careful how we
-                update d depending on the sign of gs.
-                Otherwise we have to apply the Givens rotation to these columns.
-                The i - 1 element of d has to be updated to h. */
-                cc = d[j - 1];
-                ss = d[j];
-                h = distance(cc, ss);
-                if (std::fabs(h) < epsilon) // h == 0
-                    continue;
-                d[j] = 0.0;
-                ss = ss / h;
-                cc = cc / h;
-                if (cc < 0.0)
-                {
-                    cc = -cc;
-                    ss = -ss;
-                    d[j - 1] = -h;
-                }
-                else
-                    d[j - 1] = h;
-                xny = ss / (1.0 + cc);
-                for (k = 0; k < num_var; k++)
-                {
-                    t1 = J(k,j - 1);
-                    t2 = J(k, j);
-                    J(k, j - 1) = t1 * cc + t2 * ss;
-                    J(k, j) = xny * (t1 + J(k, j - 1)) - t2;
-                }
+                givens.computeAndApply(d[j - 1], d[j], epsilon);
+                givens.applyColumnWise(J, 0, num_var, j-1, j);
             }
-            /* To update R we have to put the iq+1 components of the d vector
-              into column iq of R
-              */
-            for (i = 0; i < iq+1; i++)
-                R(i, iq) = d[i];
 
             QPPP_TRACE_MESSAGE(iq << std::endl);
-            QPPP_TRACE_MATRIX("R", R, iq+1, iq+1);
+            QPPP_TRACE_MATRIX("R", R, iq, iq);
             QPPP_TRACE_MATRIX("J", J, J.rows(), J.cols());
             QPPP_TRACE_VECTOR("d", d, d.size());
 
@@ -201,6 +326,15 @@ class Solver::Implementation
                 // problem degenerate
                 return false;
             }
+
+            /* To update R we have to put the iq+1 components of the d vector
+              into column iq of R
+              */
+            for (int i = 0; i < iq+1; i++)
+            {
+                R(i, iq) = d[i];
+            }
+
             R_norm = std::max<double>(R_norm, std::fabs(d[iq]));
             return true;
         }
@@ -216,7 +350,6 @@ class Solver::Implementation
 
 
             register int i, j, k, qq = -1; // just to prevent warnings from smart compilers
-            double cc, ss, h, xny, t1, t2;
 
             /* Find the index qq for active constraint l to be removed */
             for (i = 0; i < iq - num_ce; i++)
@@ -241,40 +374,13 @@ class Solver::Implementation
 
             QPPP_TRACE_MESSAGE('/' << iq << std::endl);
 
+            double t1, t2;
+            GivensTransform givens;
             for (j = qq; j < iq-1; j++)
             {
-                cc = R(j, j);
-                ss = R(j + 1, j);
-                h = distance(cc, ss);
-                if (std::fabs(h) < epsilon) // h == 0
-                    continue;
-                cc = cc / h;
-                ss = ss / h;
-                R(j + 1, j) = 0.0;
-                if (cc < 0.0)
-                {
-                    R(j, j) = -h;
-                    cc = -cc;
-                    ss = -ss;
-                }
-                else
-                    R(j, j) = h;
-
-                xny = ss / (1.0 + cc);
-                for (k = j + 1; k < iq-1; k++)
-                {
-                    t1 = R(j, k);
-                    t2 = R(j + 1, k);
-                    R(j, k) = t1 * cc + t2 * ss;
-                    R(j + 1,k) = xny * (t1 + R(j, k)) - t2;
-                }
-                for (k = 0; k < num_var; k++)
-                {
-                    t1 = J(k, j);
-                    t2 = J(k,j + 1);
-                    J(k, j) = t1 * cc + t2 * ss;
-                    J(k,j + 1) = xny * (J(k, j) + t1) - t2;
-                }
+                givens.computeAndApply(R(j, j), R(j + 1, j), epsilon);
+                givens.applyColumnWise(J, 0, num_var, j, j+1);
+                givens.applyRowWise(R, j+1, iq-1, j, j+1);
             }
         }
 
