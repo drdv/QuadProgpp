@@ -1,5 +1,3 @@
-//DD// Matlab interface for QLD using only bounds 2010/05/07
-
 #include <iostream>
 #include <fstream>
 #include <math.h>
