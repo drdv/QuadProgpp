@@ -1,3 +1,5 @@
+all: matlab install
+
 matlab:
 	matlab -nosplash -nodesktop -nojvm -r 'make; quit' | tail +10
 
